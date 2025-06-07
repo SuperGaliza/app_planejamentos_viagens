@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import '../models/viagem.dart';
+import '../JsonModels/viagem.dart';
 
 class DetalhesViagemScreen extends StatefulWidget {
   final Viagem viagem;

@@ -1,7 +1,6 @@
-import 'package:flutter/material.dart';
-import 'screens/login_screen.dart';
-import 'screens/cadastro_screen.dart';
-import 'screens/home_screen.dart'; // já existente
+import 'package:app_planejamentos_viagens/Authentication/login_screen.dart';
+import 'package:flutter/material.dart' hide CarouselController;
+import 'package:app_planejamentos_viagens/screens/home_screen.dart'; // já existente
 
 void main() {
   runApp(const MeuApp());
@@ -19,7 +18,7 @@ class MeuApp extends StatelessWidget {
       initialRoute: '/',
       routes: {
         '/': (context) => const LoginScreen(),
-        '/cadastro': (context) => const CadastroScreen(),
+        //'/cadastro': (context) => const CadastroScreen(),
         '/home': (context) => const HomeScreen(), // já existente
       },
     );

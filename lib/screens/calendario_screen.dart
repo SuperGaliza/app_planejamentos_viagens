@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
-import '../models/viagem.dart';
+import '../JsonModels/viagem.dart';
 import 'detalhes_viagem_screen.dart';
 
 class CalendarioScreen extends StatefulWidget {

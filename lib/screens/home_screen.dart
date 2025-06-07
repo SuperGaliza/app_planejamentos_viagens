@@ -1,10 +1,12 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
-import 'add_viagem_screen.dart';
-import '../models/viagem.dart';
-import '../database/database_helper.dart';
-import 'calendario_screen.dart';
-import 'maps_screen.dart';
-import 'detalhes_viagem_screen.dart'; // novo import
+import 'package:app_planejamentos_viagens/screens/travel_screen.dart';
+import 'package:app_planejamentos_viagens/screens/profile_screen.dart';
+import 'package:app_planejamentos_viagens/screens/placeholder_screen.dart';
+// Import da nova tela de resultados da busca
+import 'package:app_planejamentos_viagens/screens/search_results_screen.dart';
+
+// --- TELA PRINCIPAL (HOME) ---
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -14,288 +16,244 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final dbHelper = DatabaseHelper();
-  List<Viagem> _viagens = [];
-  String _filtro = '';
-  String _ordenacao = 'Data';
+  int currentIndex = 0;
+
+  final screens = [
+    const SimpleHomeContent(),
+    TravelScreen(),
+    ProfileScreen(),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: screens[currentIndex],
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: currentIndex,
+        onTap: (index) => setState(() => currentIndex = index),
+        type: BottomNavigationBarType.shifting,
+        selectedItemColor: Colors.white,
+        unselectedItemColor: Colors.white70,
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home),
+            label: 'Home',
+            backgroundColor: Color(0xFF4A90E2),
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.flight),
+            label: 'Travel',
+            backgroundColor: Color(0xFFF77764),
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person),
+            label: 'Profile',
+            backgroundColor: Color(0xFF00796B),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// --- WIDGET DE CONTEÚDO ---
+class SimpleHomeContent extends StatefulWidget {
+  const SimpleHomeContent({super.key});
+
+  @override
+  State<SimpleHomeContent> createState() => _SimpleHomeContentState();
+}
+
+class _SimpleHomeContentState extends State<SimpleHomeContent> {
+  final _searchController = TextEditingController();
+  final List<String> _tips = [
+    'Sempre salve uma cópia digital do seu passaporte na nuvem.',
+    'Leve um carregador portátil para não ficar sem bateria.',
+    'Aprenda algumas palavras básicas do idioma local. Isso abre portas!',
+    'Experimente a comida de rua para uma autêntica experiência cultural.',
+    'Use sapatos confortáveis. Você vai andar mais do que imagina!',
+  ];
+
+  late String _randomTip;
 
   @override
   void initState() {
     super.initState();
-    _carregarViagens();
+    _randomTip = _tips[Random().nextInt(_tips.length)];
   }
 
-  Future<void> _carregarViagens() async {
-    final viagens = await dbHelper.listarViagens();
-
-    if (!mounted) return;
-
-    setState(() {
-      _viagens = viagens;
-    });
-  }
-
-  void _adicionarViagem() async {
-    final novaViagem = await Navigator.push<Viagem>(
-      context,
-      MaterialPageRoute(
-        builder: (context) => AddViagemScreen(viagensExistentes: _viagens),
-      ),
-    );
-
-    if (novaViagem != null) {
-      await dbHelper.inserirViagem(novaViagem);
-      _carregarViagens();
-    }
-  }
-
-  void _editarViagem(int index) async {
-    final viagemEditada = await Navigator.push<Viagem>(
-      context,
-      MaterialPageRoute(
-        builder:
-            (context) => AddViagemScreen(
-              viagemExistente: _viagens[index],
-              viagensExistentes: _viagens,
-            ),
-      ),
-    );
-
-    if (viagemEditada != null) {
-      await dbHelper.atualizarViagem(viagemEditada);
-      _carregarViagens();
-    }
-  }
-
-  void _abrirCalendario() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => CalendarioScreen(viagens: _viagens),
-      ),
-    );
-  }
-
-  void _abrirMapa() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const MapsScreen()),
-    );
-  }
-
-  void _abrirDetalhes(Viagem viagem) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => DetalhesViagemScreen(viagem: viagem)),
-    );
-  }
-
-  void _mostrarOpcoesLongPress(Viagem viagem, int index) {
-    showModalBottomSheet(
-      context: context,
-      builder: (_) {
-        return SafeArea(
-          child: Wrap(
-            children: [
-              ListTile(
-                leading: const Icon(Icons.edit),
-                title: const Text('Editar'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _editarViagem(index);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.delete),
-                title: const Text('Excluir'),
-                onTap: () async {
-                  Navigator.pop(context);
-                  final confirm = await showDialog<bool>(
-                    context: context,
-                    builder:
-                        (_) => AlertDialog(
-                          title: const Text('Confirmar exclusão'),
-                          content: Text('Deseja excluir "${viagem.titulo}"?'),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, false),
-                              child: const Text('Cancelar'),
-                            ),
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, true),
-                              child: const Text('Excluir'),
-                            ),
-                          ],
-                        ),
-                  );
-
-                  if (confirm == true) {
-                    if (viagem.id == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Erro: viagem sem ID')),
-                      );
-                      return;
-                    }
-
-                    await dbHelper.deletarViagem(viagem.id!);
-                    _carregarViagens();
-
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Viagem "${viagem.titulo}" removida'),
-                        action: SnackBarAction(
-                          label: 'Desfazer',
-                          onPressed: () async {
-                            await dbHelper.inserirViagem(viagem);
-                            _carregarViagens();
-                          },
-                        ),
-                      ),
-                    );
-                  }
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  List<Viagem> _viagensFiltradasOrdenadas() {
-    final filtradas =
-        _viagens
-            .where(
-              (v) =>
-                  v.titulo.toLowerCase().contains(_filtro.toLowerCase()) ||
-                  v.destino.toLowerCase().contains(_filtro.toLowerCase()),
-            )
-            .toList();
-
-    if (_ordenacao == 'Orçamento') {
-      filtradas.sort((a, b) => a.orcamento.compareTo(b.orcamento));
-    } else {
-      filtradas.sort((a, b) => a.dataIda.compareTo(b.dataIda));
-    }
-
-    return filtradas;
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final viagensExibidas = _viagensFiltradasOrdenadas();
-
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Minhas Viagens'),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.map),
-            tooltip: 'Ver Mapa',
-            onPressed: _abrirMapa,
+      backgroundColor: Colors.grey[100],
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildHeader(context),
+            const SizedBox(height: 30),
+            _buildCategoryButtons(context),
+            const SizedBox(height: 30),
+            _buildTipOfTheDayCard(),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 60, 20, 30),
+      decoration: const BoxDecoration(
+        color: Color(0xFF4A90E2),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(30),
+          bottomRight: Radius.circular(30),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Bem-vindo!',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              IconButton(
+                icon: const Icon(
+                  Icons.logout,
+                  color: Colors.white,
+                  size: 28,
+                ),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+              ),
+            ],
           ),
-          IconButton(
-            icon: const Icon(Icons.calendar_today),
-            tooltip: 'Ver calendário',
-            onPressed: _abrirCalendario,
+          const SizedBox(height: 20),
+          // Barra de Busca com a NOVA funcionalidade
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(30),
+            ),
+            child: TextField(
+              controller: _searchController,
+              onSubmitted: (value) {
+                // Se o valor não for vazio, navega para a tela de resultados
+                if (value.isNotEmpty) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => SearchResultsScreen(searchQuery: value),
+                    ),
+                  );
+                }
+              },
+              decoration: const InputDecoration(
+                icon: Icon(Icons.search, color: Colors.grey),
+                hintText: 'Para onde vamos?',
+                border: InputBorder.none,
+              ),
+            ),
           ),
         ],
       ),
-      body: Column(
+    );
+  }
+
+  Widget _buildCategoryButtons(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        _buildCategoryItem(context, icon: Icons.flight_takeoff, label: 'Voos'),
+        _buildCategoryItem(context, icon: Icons.hotel, label: 'Hotéis'),
+        _buildCategoryItem(context, icon: Icons.local_offer, label: 'Ofertas'),
+        _buildCategoryItem(context, icon: Icons.directions_car, label: 'Carros'),
+      ],
+    );
+  }
+
+  Widget _buildCategoryItem(BuildContext context, {required IconData icon, required String label}) {
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => PlaceholderScreen(title: label)),
+        );
+      },
+      borderRadius: BorderRadius.circular(20),
+      child: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    decoration: const InputDecoration(
-                      hintText: 'Filtrar por título ou destino...',
-                      prefixIcon: Icon(Icons.search),
-                      border: OutlineInputBorder(),
-                    ),
-                    onChanged: (valor) {
-                      setState(() => _filtro = valor);
-                    },
-                  ),
-                ),
-                const SizedBox(width: 8),
-                DropdownButton<String>(
-                  value: _ordenacao,
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'Data',
-                      child: Text('Ordenar por Data'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'Orçamento',
-                      child: Text('Ordenar por Orçamento'),
-                    ),
-                  ],
-                  onChanged: (val) {
-                    if (val != null) {
-                      setState(() => _ordenacao = val);
-                    }
-                  },
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withOpacity(0.15),
+                  spreadRadius: 1,
+                  blurRadius: 10,
                 ),
               ],
             ),
+            child: Icon(icon, color: const Color(0xFF4A90E2), size: 36),
           ),
-          Expanded(
-            child:
-                viagensExibidas.isEmpty
-                    ? const Center(child: Text('Nenhuma viagem encontrada.'))
-                    : ListView.builder(
-                      itemCount: viagensExibidas.length,
-                      itemBuilder: (context, index) {
-                        final viagem = viagensExibidas[index];
-                        final dataIda =
-                            '${viagem.dataIda.day}/${viagem.dataIda.month}';
-                        final dataVolta =
-                            '${viagem.dataChegada.day}/${viagem.dataChegada.month}';
-
-                        return GestureDetector(
-                          onTap: () => _abrirDetalhes(viagem),
-                          onLongPress:
-                              () => _mostrarOpcoesLongPress(viagem, index),
-                          child: Hero(
-                            tag:
-                                viagem.id?.toString() ??
-                                viagem.hashCode.toString(),
-                            child: Card(
-                              margin: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              elevation: 3,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: ListTile(
-                                leading: const Icon(Icons.flight_takeoff),
-                                title: Text(viagem.titulo),
-                                subtitle: Text(
-                                  '${viagem.destino} • $dataIda → $dataVolta',
-                                ),
-                                trailing: Text(
-                                  'R\$ ${viagem.orcamento.toStringAsFixed(2)}',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-          ),
+          const SizedBox(height: 8),
+          Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _adicionarViagem,
-        child: const Icon(Icons.add),
+    );
+  }
+
+  Widget _buildTipOfTheDayCard() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Dica do Dia',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey[800],
+            ),
+          ),
+          const SizedBox(height: 10),
+          Card(
+            elevation: 2,
+            shadowColor: Colors.black.withOpacity(0.1),
+            color: Colors.blue.shade50,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: ListTile(
+              leading: const Icon(Icons.lightbulb_outline, color: Colors.blue, size: 30),
+              title: const Text(
+                'Dica de Viagem',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              subtitle: Text(_randomTip),
+            ),
+          ),
+        ],
       ),
     );
   }

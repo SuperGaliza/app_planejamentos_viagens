@@ -1,7 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
-import '../models/viagem.dart';
-import '../models/usuario.dart';
+import '../JsonModels/viagem.dart';
+import '../JsonModels/users.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper _instance = DatabaseHelper._internal();
@@ -10,6 +10,11 @@ class DatabaseHelper {
 
   static Database? _db;
 
+  //Now we must create our user table into our sqlite db
+  String users = "create table users (usrId INTEGER PRIMARY KEY AUTOINCREMENT, usrName TEXT UNIQUE, usrPassword TEXT)";
+
+  //We are done in this selection
+   
   Future<Database> get database async {
     if (_db != null) return _db!;
     _db = await _initDB();
@@ -40,14 +45,14 @@ class DatabaseHelper {
         corHex TEXT
       )
     ''');
-
-    await db.execute('''
+    await db.execute(users);
+    /*await db.execute('''
       CREATE TABLE usuarios(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         email TEXT NOT NULL,
         senha TEXT NOT NULL
       )
-    ''');
+    ''');*/
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -89,30 +94,28 @@ class DatabaseHelper {
     return await db.delete('viagens', where: 'id = ?', whereArgs: [id]);
   }
 
-  // Métodos Usuário
-  Future<int> inserirUsuario(Usuario usuario) async {
-    try {
-      final db = await database;
-      return await db.insert('usuarios', usuario.toMap());
-    } catch (e) {
-      // ignore: avoid_print
-      print('Erro ao inserir usuário: $e');
-      return -1;
+  //How we create login and sign up method
+  //as we create sqlite other functionality in our previous video
+
+  //Login Method
+
+  Future<bool> login(Users user)async{
+    final Database db = await _initDB();
+
+    // T forgot the password to check
+    var result = await db.rawQuery(
+      "select * from users where usrName = '${user.usrName}' AND usrPassword = '${user.usrPassword}'");
+    if (result.isNotEmpty){
+      return true;
+    }else {
+      return false;
     }
   }
 
-  Future<Usuario?> autenticarUsuario(String email, String senha) async {
-    final db = await database;
-    final result = await db.query(
-      'usuarios',
-      where: 'email = ? AND senha = ?',
-      whereArgs: [email, senha],
-    );
-    return result.isNotEmpty ? Usuario.fromMap(result.first) : null;
-  }
+  //Sign up
+  Future <int> Signup(Users user)async{
+    final Database db = await _initDB();
 
-  Future<void> fecharBanco() async {
-    final db = await database;
-    await db.close();
+    return db.insert('users', user.toMap());
   }
 }

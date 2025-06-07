@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
-import '../models/viagem.dart';
+import '../JsonModels/viagem.dart';
 import '../widgets/destino_autocomplete.dart';
 
 class AddViagemScreen extends StatefulWidget {
