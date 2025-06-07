@@ -5,7 +5,8 @@ class Viagem {
   double orcamento;
   DateTime dataIda;
   DateTime dataChegada;
-  String? corHex; // agora é opcional
+  String? corHex;
+  int userId; // <<--- NOVO CAMPO: ID do usuário proprietário da viagem
 
   Viagem({
     this.id,
@@ -15,6 +16,7 @@ class Viagem {
     required this.dataIda,
     required this.dataChegada,
     this.corHex,
+    required this.userId, // <<--- Adicionar ao construtor
   });
 
   factory Viagem.fromMap(Map<String, dynamic> map) {
@@ -25,7 +27,8 @@ class Viagem {
       orcamento: map['orcamento'],
       dataIda: DateTime.parse(map['dataIda']),
       dataChegada: DateTime.parse(map['dataChegada']),
-      corHex: map['corHex'] as String?, // permite null
+      corHex: map['corHex'] as String?,
+      userId: map['userId'], // <<--- Ler do mapa
     );
   }
 
@@ -38,6 +41,7 @@ class Viagem {
       'dataIda': dataIda.toIso8601String(),
       'dataChegada': dataChegada.toIso8601String(),
       'corHex': corHex,
+      'userId': userId, // <<--- Escrever no mapa
     };
   }
 }
