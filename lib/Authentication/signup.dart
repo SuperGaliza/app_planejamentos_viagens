@@ -2,6 +2,8 @@ import 'package:app_planejamentos_viagens/Authentication/login_screen.dart';
 import 'package:app_planejamentos_viagens/JsonModels/users.dart';
 import 'package:app_planejamentos_viagens/database/database_helper.dart';
 import 'package:flutter/material.dart';
+import 'package:app_planejamentos_viagens/utils/session_manager.dart'; // <<< Importar SessionManager
+import 'package:app_planejamentos_viagens/screens/home_screen.dart'; // Importar HomeScreen se for logar direto
 
 class SignUp extends StatefulWidget {
   const SignUp({super.key});
@@ -11,7 +13,6 @@ class SignUp extends StatefulWidget {
 }
 
 class SignUpState extends State<SignUp> {
-  
   final username = TextEditingController();
   final password = TextEditingController();
   final confirmPassword = TextEditingController();
@@ -19,11 +20,69 @@ class SignUpState extends State<SignUp> {
   final formKey = GlobalKey<FormState>();
 
   bool isVisible = false;
+  bool _isLoading = false; // Estado para o indicador de carregamento
+
+  final db = DatabaseHelper();
+
+  void _registerUser() async {
+    // Renomeado de 'Signup' para _registerUser por convenção
+    if (formKey.currentState!.validate()) {
+      // Validação extra para destino vazio pode ser ajustada ou removida se não for o caso aqui
+      // if (_destinoController.text.trim().isEmpty) { ScaffoldMessenger... return; }
+
+      setState(() {
+        _isLoading = true; // Inicia o carregamento
+      });
+
+      // Chama o método Signup do DatabaseHelper, que agora retorna int? (o ID do novo usuário) ou null
+      int? newUserId = await db.Signup(
+        Users(usrName: username.text, usrPassword: password.text),
+      );
+
+      if (!mounted)
+        return; // Verifica se o widget ainda está na árvore antes de setState
+
+      setState(() {
+        _isLoading = false; // Finaliza o carregamento
+      });
+
+      if (newUserId != null) {
+        // Se o cadastro for bem-sucedido
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Conta criada com sucesso! Por favor, faça login."),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        // Redireciona para a tela de login (usando pushReplacement para limpar a pilha)
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+        );
+
+        // Opcional: Se quiser logar o usuário automaticamente após o cadastro, descomente e ajuste:
+        // await SessionManager.saveLoggedInUser(Users(usrId: newUserId, usrName: username.text, usrPassword: password.text));
+        // if (!mounted) return;
+        // Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const HomeScreen()));
+      } else {
+        // Se o cadastro falhou (ex: nome de usuário já existe)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              "Erro ao criar conta. Nome de usuário já existe ou ocorreu um problema.",
+            ),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return  Scaffold(
-      //SingledChildScrollView to have an scroll in the screen
+    return Scaffold(
       body: Center(
         child: SingleChildScrollView(
           child: Form(
@@ -33,54 +92,57 @@ class SignUpState extends State<SignUp> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  //We will copy the previous textfield we design to avoid time consuming
-                  
                   const ListTile(
                     title: Text(
-                      "Register New Account",
-                      style: 
-                          TextStyle(fontSize: 53, fontWeight: FontWeight.bold),
+                      "Criar Nova Conta", // Título mais adequado para cadastro
+                      style: TextStyle(
+                        fontSize: 53,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
-
-                  //As we assigned our controller to the textformfields 
-
-                  Container(
-                        margin: EdgeInsets.all(8),
-                        padding: 
-                          const EdgeInsets.symmetric(horizontal: 10, vertical:6),
-                        decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8),
-                            color: Colors.blue.withOpacity(.2)),
-                        child: TextFormField(
-                          controller: username,
-                          validator: (value) {
-                            if(value!.isEmpty){
-                              return "username is required";
-                            }
-                            return null;
-                          },
-                          decoration: const InputDecoration(
-                            icon: Icon(Icons.person),
-                            border: InputBorder.none,
-                            hintText: "Username",
-                          ), 
-                        ),
-                      ),
-                  
-                  //Password field
+                  // Campo de Usuário
                   Container(
                     margin: const EdgeInsets.all(8),
-                    padding: 
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(8),
-                        color: Colors.blue.withOpacity(.2)),
+                      borderRadius: BorderRadius.circular(8),
+                      color: Colors.blue.withOpacity(.2),
+                    ),
+                    child: TextFormField(
+                      controller: username,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return "Nome de usuário é obrigatório";
+                        }
+                        return null;
+                      },
+                      decoration: const InputDecoration(
+                        icon: Icon(Icons.person),
+                        border: InputBorder.none,
+                        hintText: "Nome de usuário",
+                      ),
+                    ),
+                  ),
+                  // Campo de Senha
+                  Container(
+                    margin: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      color: Colors.blue.withOpacity(.2),
+                    ),
                     child: TextFormField(
                       controller: password,
                       validator: (value) {
-                        if(value!.isEmpty){
-                          return "password is required";
+                        if (value == null || value.isEmpty) {
+                          return "Senha é obrigatória";
                         }
                         return null;
                       },
@@ -88,37 +150,38 @@ class SignUpState extends State<SignUp> {
                       decoration: InputDecoration(
                         icon: const Icon(Icons.lock),
                         border: InputBorder.none,
-                        hintText: "Password",
+                        hintText: "Senha",
                         suffixIcon: IconButton(
                           onPressed: () {
-                            //In here we will create a click to show and hide the password a toggle button
                             setState(() {
-                              //toggle button
                               isVisible = !isVisible;
                             });
-                          
-                          }, icon: Icon(isVisible
-                          ? Icons.visibility 
-                          : Icons.visibility_off))), 
+                          },
+                          icon: Icon(
+                            isVisible ? Icons.visibility : Icons.visibility_off,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
-
-                  //Confirm Password field
-                  //Now we check wheter password matches or not 
+                  // Campo de Confirmação de Senha
                   Container(
                     margin: const EdgeInsets.all(8),
-                    padding: 
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(8),
-                        color: Colors.blue.withOpacity(.2)),
+                      borderRadius: BorderRadius.circular(8),
+                      color: Colors.blue.withOpacity(.2),
+                    ),
                     child: TextFormField(
                       controller: confirmPassword,
                       validator: (value) {
-                        if(value!.isEmpty){
-                          return "password is required";
-                        }else if(password.text != confirmPassword.text){
-                          return "Passwords don't match";
+                        if (value == null || value.isEmpty) {
+                          return "Confirme a senha";
+                        } else if (password.text != confirmPassword.text) {
+                          return "As senhas não coincidem";
                         }
                         return null;
                       },
@@ -126,72 +189,64 @@ class SignUpState extends State<SignUp> {
                       decoration: InputDecoration(
                         icon: const Icon(Icons.lock),
                         border: InputBorder.none,
-                        hintText: "Password",
+                        hintText: "Confirmar Senha",
                         suffixIcon: IconButton(
                           onPressed: () {
-                            //In here we will create a click to show and hide the password a toggle button
                             setState(() {
-                              //toggle button
                               isVisible = !isVisible;
                             });
-                          
-                          }, icon: Icon(isVisible
-                          ? Icons.visibility 
-                          : Icons.visibility_off))), 
+                          },
+                          icon: Icon(
+                            isVisible ? Icons.visibility : Icons.visibility_off,
+                          ),
                         ),
-                     ),
-                
-                  const SizedBox(height: 10),  
-                  //login button
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  // Botão de Cadastro
                   Container(
                     height: 55,
                     width: MediaQuery.of(context).size.width * .9,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(8),
-                      color: Colors.blue),
+                      color: Colors.blue,
+                    ),
                     child: TextButton(
-                      onPressed: () {
-                        if (formKey.currentState!.validate()) {
-                          //Login method will be here
-
-                          final db = DatabaseHelper();
-                          db
-                            .Signup(Users(
-                              usrName: username.text, 
-                              usrPassword: password.text))
-                            .whenComplete((){
-                            //After success user creation go to login screen
-                           Navigator.push(
-                            context, 
-                            MaterialPageRoute(
-                              builder: (context)=>
-                                const LoginScreen()));   
-                          });
-                        }
-                      }, 
-                        child: const Text(
-                          "SIGN UP",
-                          style: TextStyle(color: Colors.white),
-                          )),
+                      onPressed:
+                          _isLoading
+                              ? null
+                              : _registerUser, // Desabilita o botão enquanto carrega
+                      child:
+                          _isLoading
+                              ? const CircularProgressIndicator(
+                                color: Colors.white,
+                              )
+                              : const Text(
+                                "CADASTRAR",
+                                style: TextStyle(color: Colors.white),
+                              ),
+                    ),
                   ),
-              
-                  //Sign up button
+                  // Botão "Já tem uma conta?"
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Text("Already have an account?"),
-                      TextButton(onPressed: () {
-                        //Navigate to sign up
-                        Navigator.push(
-                          context, 
-                          MaterialPageRoute(
-                            builder: (context) => const LoginScreen()));
-                      }, 
-                      child: const Text("Login"))
+                      const Text("Já tem uma conta?"),
+                      TextButton(
+                        onPressed: () {
+                          // Navega para a tela de Login, removendo a tela de cadastro da pilha
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const LoginScreen(),
+                            ),
+                          );
+                        },
+                        child: const Text("Login"),
+                      ),
                     ],
-                  )
-                
-
+                  ),
                 ],
               ),
             ),

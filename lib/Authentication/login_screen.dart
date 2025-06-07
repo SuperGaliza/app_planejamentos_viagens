@@ -3,6 +3,7 @@ import 'package:app_planejamentos_viagens/JsonModels/users.dart';
 import 'package:app_planejamentos_viagens/database/database_helper.dart';
 import 'package:app_planejamentos_viagens/screens/home_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:app_planejamentos_viagens/utils/session_manager.dart'; // <<< Importar SessionManager
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -12,39 +13,57 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  //We need two text editing controller
-
-  //TextEditing controller to control the text when we enter into it
   final username = TextEditingController();
   final password = TextEditingController();
-  
-  //A bool variable for show and hide password
-  bool isVisible = false;
 
-  //Here is our bool variable
-  bool isLoginTrue = false;
+  bool isVisible = false;
+  bool _isLoading = false; // Estado para o indicador de carregamento
 
   final db = DatabaseHelper();
 
-  //How we should call this function in login button
-  login()async {
-    var response = 
-     await db.login(Users(usrName: username.text, usrPassword: password.text));
-    if(response == true) {
-      //if login is correct, then goto notes
-      if(!mounted) return;
-      Navigator.push(
-        context, MaterialPageRoute(builder: (context)=> const HomeScreen()));
-    }else{
-      //if not, true the bool value to show orror message
+  void _loginUser() async {
+    // Renomeado de 'login' para _loginUser por convenção
+    if (formKey.currentState!.validate()) {
       setState(() {
-        isLoginTrue = true; 
+        _isLoading = true; // Inicia o carregamento
       });
+
+      // Chama o método login do DatabaseHelper, que agora retorna Users? ou null
+      Users? loggedInUser = await db.login(
+        Users(usrName: username.text, usrPassword: password.text),
+      );
+
+      if (!mounted)
+        return; // Verifica se o widget ainda está na árvore antes de setState
+
+      setState(() {
+        _isLoading = false; // Finaliza o carregamento
+      });
+
+      if (loggedInUser != null) {
+        // Se o login for bem-sucedido, salva o ID do usuário na sessão
+        await SessionManager.saveLoggedInUser(loggedInUser);
+        if (!mounted) return;
+        // Navega para a HomeScreen, removendo todas as rotas anteriores (impede voltar para o login)
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+        );
+      } else {
+        // Se o login falhar, exibe uma SnackBar com a mensagem de erro
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Nome de usuário ou senha incorretos."),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating, // Para um visual mais moderno
+          ),
+        );
+      }
     }
   }
 
-  //We have to create global key for our form
   final formKey = GlobalKey<FormState>();
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -53,55 +72,54 @@ class _LoginScreenState extends State<LoginScreen> {
         child: SingleChildScrollView(
           child: Padding(
             padding: const EdgeInsets.all(10.0),
-            //We put all our textfield to a form to be controlled and not allow as empty 
             child: Form(
               key: formKey,
               child: Column(
                 children: [
-              
-                  //Username field
-              
-                  //Before we show the image, after we copied the image we need to define the location in pubspec.yaml
-                  Image.asset("lib/assets/logincell.png",
-                  width: 350,
-                  ),
+                  Image.asset("lib/assets/logincell.png", width: 350),
                   const SizedBox(height: 15),
                   Container(
                     margin: const EdgeInsets.all(8),
-                    padding: 
-                      const EdgeInsets.symmetric(horizontal: 10, vertical:6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(8),
-                        color: Colors.blue.withOpacity(.2)),
+                      borderRadius: BorderRadius.circular(8),
+                      color: Colors.blue.withOpacity(.2),
+                    ),
                     child: TextFormField(
                       controller: username,
                       validator: (value) {
-                        if(value!.isEmpty){
-                          return "username is required";
+                        if (value == null || value.isEmpty) {
+                          // Correção para aceitar null
+                          return "Nome de usuário é obrigatório";
                         }
                         return null;
                       },
                       decoration: const InputDecoration(
                         icon: Icon(Icons.person),
                         border: InputBorder.none,
-                        hintText: "Username",
-                      ), 
+                        hintText: "Nome de usuário", // Ajustado para português
+                      ),
                     ),
                   ),
-              
-                  //Password field
                   Container(
                     margin: const EdgeInsets.all(8),
-                    padding: 
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(8),
-                        color: Colors.blue.withOpacity(.2)),
+                      borderRadius: BorderRadius.circular(8),
+                      color: Colors.blue.withOpacity(.2),
+                    ),
                     child: TextFormField(
                       controller: password,
                       validator: (value) {
-                        if(value!.isEmpty){
-                          return "password is required";
+                        if (value == null || value.isEmpty) {
+                          // Correção para aceitar null
+                          return "Senha é obrigatória"; // Ajustado para português
                         }
                         return null;
                       },
@@ -109,68 +127,64 @@ class _LoginScreenState extends State<LoginScreen> {
                       decoration: InputDecoration(
                         icon: const Icon(Icons.lock),
                         border: InputBorder.none,
-                        hintText: "Password",
+                        hintText: "Senha", // Ajustado para português
                         suffixIcon: IconButton(
                           onPressed: () {
-                            //In here we will create a click to show and hide the password a toggle button
                             setState(() {
-                              //toggle button
                               isVisible = !isVisible;
                             });
-                          
-                          }, icon: Icon(isVisible
-                          ? Icons.visibility 
-                          : Icons.visibility_off))), 
+                          },
+                          icon: Icon(
+                            isVisible ? Icons.visibility : Icons.visibility_off,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
-              
                   const SizedBox(height: 10),
-                  //login button
                   Container(
                     height: 55,
                     width: MediaQuery.of(context).size.width * .9,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(8),
-                      color: Colors.blue),
+                      color: Colors.blue,
+                    ),
                     child: TextButton(
-                      onPressed: () {
-                        if (formKey.currentState!.validate()) {
-                          //Login method will be here
-                          login();
-
-                          //Now we have as response from our sqlite method
-                          //We are going to create a user
-                        }
-                      }, 
-                        child: const Text(
-                          "LOGIN",
-                          style: TextStyle(color: Colors.white),
-                          )),
+                      onPressed:
+                          _isLoading
+                              ? null
+                              : _loginUser, // Desabilita o botão enquanto carrega
+                      child:
+                          _isLoading
+                              ? const CircularProgressIndicator(
+                                color: Colors.white,
+                              )
+                              : const Text(
+                                "LOGIN",
+                                style: TextStyle(color: Colors.white),
+                              ),
+                    ),
                   ),
-              
-                  //Sign up button
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Text("Don't have an account?"),
-                      TextButton(onPressed: () {
-                        //Navigate to sign up
-                        Navigator.push(
-                          context, 
-                          MaterialPageRoute(
-                            builder: (context)=>const SignUp()));
-                      }, 
-                      child: const Text("SIGN UP"))
+                      const Text("Não tem uma conta?"),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const SignUp(),
+                            ),
+                          );
+                        },
+                        child: const Text("CADASTRAR"),
+                      ),
                     ],
                   ),
-
-                  //We will disable this message in default, when user and pass is incorrect we will trigger this message to users  
-                  isLoginTrue? const Text(
-                    "Username or password is incorrect",
-                    style: TextStyle(color: Colors.red),
-                  )
-                  : const SizedBox(),
-                ]
+                  // Remover a mensagem de erro antiga, pois agora usamos SnackBar
+                  // isLoginTrue ? const Text("Username or password is incorrect", style: TextStyle(color: Colors.red)) : const SizedBox(),
+                ],
               ),
             ),
           ),
