@@ -45,7 +45,7 @@ class _LoginScreenState extends State<LoginScreen> {
         await SessionManager.saveLoggedInUser(loggedInUser);
         if (!mounted) return;
         // Navega para a HomeScreen, removendo todas as rotas anteriores (impede voltar para o login)
-        Navigator.pushReplacement(
+        Navigator.push(
           context,
           MaterialPageRoute(builder: (context) => const HomeScreen()),
         );

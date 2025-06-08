@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:app_planejamentos_viagens/screens/travel_screen.dart';
 import 'package:app_planejamentos_viagens/screens/profile_screen.dart';
 import 'package:app_planejamentos_viagens/screens/placeholder_screen.dart';
-// Import da nova tela de resultados da busca
 import 'package:app_planejamentos_viagens/screens/search_results_screen.dart';
 
 // --- TELA PRINCIPAL (HOME) ---
@@ -21,7 +20,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final screens = [
     const SimpleHomeContent(),
     TravelScreen(),
-    ProfileScreen(),
+    const ProfileScreen(), // Usando a nova ProfileScreen
   ];
 
   @override
@@ -48,7 +47,8 @@ class _HomeScreenState extends State<HomeScreen> {
           BottomNavigationBarItem(
             icon: Icon(Icons.person),
             label: 'Profile',
-            backgroundColor: Color(0xFF00796B),
+            // Usando a nova cor verde-azulado mais suave
+            backgroundColor: Color(0xFF4DB6AC),
           ),
         ],
       ),
@@ -56,7 +56,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// --- WIDGET DE CONTEÚDO ---
+// --- WIDGET DE CONTEÚDO DA HOME ---
+// Este é o "recheio" da sua aba Home, com todas as funcionalidades.
+
 class SimpleHomeContent extends StatefulWidget {
   const SimpleHomeContent({super.key});
 
@@ -139,13 +141,15 @@ class _SimpleHomeContentState extends State<SimpleHomeContent> {
                   size: 28,
                 ),
                 onPressed: () {
+                  // Esta ação agora deve estar na tela de Perfil,
+                  // mas mantemos aqui caso você queira ter em ambos os lugares.
+                  // A forma mais segura de sair é pela tela de Perfil.
                   Navigator.of(context).pop();
                 },
               ),
             ],
           ),
           const SizedBox(height: 20),
-          // Barra de Busca com a NOVA funcionalidade
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             decoration: BoxDecoration(
@@ -155,12 +159,12 @@ class _SimpleHomeContentState extends State<SimpleHomeContent> {
             child: TextField(
               controller: _searchController,
               onSubmitted: (value) {
-                // Se o valor não for vazio, navega para a tela de resultados
                 if (value.isNotEmpty) {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => SearchResultsScreen(searchQuery: value),
+                      builder: (context) =>
+                          SearchResultsScreen(searchQuery: value),
                     ),
                   );
                 }
@@ -189,12 +193,14 @@ class _SimpleHomeContentState extends State<SimpleHomeContent> {
     );
   }
 
-  Widget _buildCategoryItem(BuildContext context, {required IconData icon, required String label}) {
+  Widget _buildCategoryItem(BuildContext context,
+      {required IconData icon, required String label}) {
     return InkWell(
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => PlaceholderScreen(title: label)),
+          MaterialPageRoute(
+              builder: (context) => PlaceholderScreen(title: label)),
         );
       },
       borderRadius: BorderRadius.circular(20),
@@ -245,7 +251,8 @@ class _SimpleHomeContentState extends State<SimpleHomeContent> {
               borderRadius: BorderRadius.circular(15),
             ),
             child: ListTile(
-              leading: const Icon(Icons.lightbulb_outline, color: Colors.blue, size: 30),
+              leading: const Icon(Icons.lightbulb_outline,
+                  color: Colors.blue, size: 30),
               title: const Text(
                 'Dica de Viagem',
                 style: TextStyle(fontWeight: FontWeight.bold),
