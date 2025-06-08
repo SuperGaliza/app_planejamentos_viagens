@@ -4,6 +4,8 @@ import 'package:app_planejamentos_viagens/screens/travel_screen.dart';
 import 'package:app_planejamentos_viagens/screens/profile_screen.dart';
 import 'package:app_planejamentos_viagens/screens/placeholder_screen.dart';
 import 'package:app_planejamentos_viagens/screens/search_results_screen.dart';
+import 'package:app_planejamentos_viagens/Authentication/login_screen.dart'; // Importar para logout
+import 'package:app_planejamentos_viagens/utils/session_manager.dart'; // Importar para logout
 
 // --- TELA PRINCIPAL (HOME) ---
 
@@ -19,8 +21,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final screens = [
     const SimpleHomeContent(),
-    TravelScreen(),
-    const ProfileScreen(), // Usando a nova ProfileScreen
+    const TravelScreen(), // TravelScreen agora tem as abas internas
+    const ProfileScreen(),
   ];
 
   @override
@@ -36,18 +38,18 @@ class _HomeScreenState extends State<HomeScreen> {
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.home),
-            label: 'Home',
+            label: 'Início', // <<< EM PORTUGUÊS
             backgroundColor: Color(0xFF4A90E2),
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.flight),
-            label: 'Travel',
+            label: 'Viagens', // <<< EM PORTUGUÊS
             backgroundColor: Color(0xFFF77764),
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person),
-            label: 'Profile',
-            // Usando a nova cor verde-azulado mais suave
+            label: 'Perfil', // <<< EM PORTUGUÊS
+            // Sua cor atual para Perfil já é Color(0xFF4DB6AC), vou manter.
             backgroundColor: Color(0xFF4DB6AC),
           ),
         ],
@@ -56,8 +58,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// --- WIDGET DE CONTEÚDO DA HOME ---
-// Este é o "recheio" da sua aba Home, com todas as funcionalidades.
+// --- WIDGET DE CONTEÚDO DA HOME (SEM MUDANÇAS NA LÓGICA) ---
 
 class SimpleHomeContent extends StatefulWidget {
   const SimpleHomeContent({super.key});
@@ -135,16 +136,17 @@ class _SimpleHomeContentState extends State<SimpleHomeContent> {
                 ),
               ),
               IconButton(
-                icon: const Icon(
-                  Icons.logout,
-                  color: Colors.white,
-                  size: 28,
-                ),
-                onPressed: () {
-                  // Esta ação agora deve estar na tela de Perfil,
-                  // mas mantemos aqui caso você queira ter em ambos os lugares.
-                  // A forma mais segura de sair é pela tela de Perfil.
-                  Navigator.of(context).pop();
+                icon: const Icon(Icons.logout, color: Colors.white, size: 28),
+                onPressed: () async {
+                  await SessionManager.clearSession(); // Lógica de logout
+                  if (!mounted) return;
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const LoginScreen(),
+                    ),
+                    (Route<dynamic> route) => false,
+                  );
                 },
               ),
             ],
@@ -163,8 +165,8 @@ class _SimpleHomeContentState extends State<SimpleHomeContent> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) =>
-                          SearchResultsScreen(searchQuery: value),
+                      builder:
+                          (context) => SearchResultsScreen(searchQuery: value),
                     ),
                   );
                 }
@@ -188,19 +190,27 @@ class _SimpleHomeContentState extends State<SimpleHomeContent> {
         _buildCategoryItem(context, icon: Icons.flight_takeoff, label: 'Voos'),
         _buildCategoryItem(context, icon: Icons.hotel, label: 'Hotéis'),
         _buildCategoryItem(context, icon: Icons.local_offer, label: 'Ofertas'),
-        _buildCategoryItem(context, icon: Icons.directions_car, label: 'Carros'),
+        _buildCategoryItem(
+          context,
+          icon: Icons.directions_car,
+          label: 'Carros',
+        ),
       ],
     );
   }
 
-  Widget _buildCategoryItem(BuildContext context,
-      {required IconData icon, required String label}) {
+  Widget _buildCategoryItem(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+  }) {
     return InkWell(
       onTap: () {
         Navigator.push(
           context,
           MaterialPageRoute(
-              builder: (context) => PlaceholderScreen(title: label)),
+            builder: (context) => PlaceholderScreen(title: label),
+          ),
         );
       },
       borderRadius: BorderRadius.circular(20),
@@ -251,8 +261,11 @@ class _SimpleHomeContentState extends State<SimpleHomeContent> {
               borderRadius: BorderRadius.circular(15),
             ),
             child: ListTile(
-              leading: const Icon(Icons.lightbulb_outline,
-                  color: Colors.blue, size: 30),
+              leading: const Icon(
+                Icons.lightbulb_outline,
+                color: Colors.blue,
+                size: 30,
+              ),
               title: const Text(
                 'Dica de Viagem',
                 style: TextStyle(fontWeight: FontWeight.bold),

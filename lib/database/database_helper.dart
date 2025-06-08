@@ -10,6 +10,7 @@ class DatabaseHelper {
 
   static Database? _db;
 
+  // Definição da tabela de usuários
   String usersTable =
       "CREATE TABLE users (usrId INTEGER PRIMARY KEY AUTOINCREMENT, usrName TEXT UNIQUE, usrPassword TEXT, profileImagePath TEXT)";
 
@@ -25,7 +26,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 4,
+      version: 6, // <<< AUMENTE A VERSÃO AQUI (era 4, agora 6)
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -41,7 +42,12 @@ class DatabaseHelper {
         dataIda TEXT NOT NULL,
         dataChegada TEXT NOT NULL,
         corHex TEXT,
-        userId INTEGER NOT NULL
+        userId INTEGER NOT NULL,
+        hospedagem REAL DEFAULT 0.0 NOT NULL,   -- <<< NOVA COLUNA
+        transporte REAL DEFAULT 0.0 NOT NULL,
+        alimentacao REAL DEFAULT 0.0 NOT NULL,
+        despesasDiversas REAL DEFAULT 0.0 NOT NULL, -- <<< NOVA COLUNA (para substituir "presentes")
+        passeios REAL DEFAULT 0.0 NOT NULL
       )
     ''');
     await db.execute(usersTable);
@@ -60,19 +66,53 @@ class DatabaseHelper {
     if (oldVersion < 4) {
       await db.execute('ALTER TABLE users ADD COLUMN profileImagePath TEXT');
     }
+    // Migração da versão 4 para 5: Adiciona os campos de orçamento detalhado (menos hospedagem e renomeando presentes)
+    if (oldVersion < 5) {
+      await db.execute(
+        'ALTER TABLE viagens ADD COLUMN transporte REAL DEFAULT 0.0 NOT NULL',
+      );
+      await db.execute(
+        'ALTER TABLE viagens ADD COLUMN alimentacao REAL DEFAULT 0.0 NOT NULL',
+      );
+      await db.execute(
+        'ALTER TABLE viagens ADD COLUMN presentes REAL DEFAULT 0.0 NOT NULL',
+      ); // Campo original "presentes"
+      await db.execute(
+        'ALTER TABLE viagens ADD COLUMN passeios REAL DEFAULT 0.0 NOT NULL',
+      );
+    }
+    // <<< NOVA MIGRAÇÃO PARA A VERSÃO 6: Adiciona hospedagem e despesasDiversas
+    if (oldVersion < 6) {
+      await db.execute(
+        'ALTER TABLE viagens ADD COLUMN hospedagem REAL DEFAULT 0.0 NOT NULL',
+      );
+      // Adiciona 'despesasDiversas'. Se 'presentes' existia, para a migração simples,
+      // manteremos 'presentes' e adicionaremos 'despesasDiversas'. No modelo,
+      // faremos a leitura dar preferência a 'despesasDiversas'.
+      await db.execute(
+        'ALTER TABLE viagens ADD COLUMN despesasDiversas REAL DEFAULT 0.0 NOT NULL',
+      );
+    }
   }
 
   // Métodos Viagem
   Future<int> inserirViagem(Viagem viagem) async {
     final db = await database;
-    return await db.insert('viagens', viagem.toMap(),
-        conflictAlgorithm: ConflictAlgorithm.replace);
+    return await db.insert(
+      'viagens',
+      viagem.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<List<Viagem>> listarViagens(int userId) async {
     final db = await database;
-    final maps = await db
-        .query('viagens', where: 'userId = ?', whereArgs: [userId], orderBy: 'dataIda');
+    final maps = await db.query(
+      'viagens',
+      where: 'userId = ?',
+      whereArgs: [userId],
+      orderBy: 'dataIda',
+    );
     return maps.map((map) => Viagem.fromMap(map)).toList();
   }
 
@@ -81,21 +121,31 @@ class DatabaseHelper {
       throw Exception('ID da viagem é obrigatório para atualização.');
     }
     final db = await database;
-    return await db.update('viagens', viagem.toMap(),
-        where: 'id = ? AND userId = ?', whereArgs: [viagem.id, viagem.userId]);
+    return await db.update(
+      'viagens',
+      viagem.toMap(),
+      where: 'id = ? AND userId = ?',
+      whereArgs: [viagem.id, viagem.userId],
+    );
   }
 
   Future<int> deletarViagem(int id, int userId) async {
     final db = await database;
-    return await db
-        .delete('viagens', where: 'id = ? AND userId = ?', whereArgs: [id, userId]);
+    return await db.delete(
+      'viagens',
+      where: 'id = ? AND userId = ?',
+      whereArgs: [id, userId],
+    );
   }
 
   // Métodos para a Tela de Perfil
   Future<Users?> getUserById(int id) async {
     final db = await database;
-    final List<Map<String, dynamic>> maps =
-        await db.query('users', where: 'usrId = ?', whereArgs: [id]);
+    final List<Map<String, dynamic>> maps = await db.query(
+      'users',
+      where: 'usrId = ?',
+      whereArgs: [id],
+    );
     if (maps.isNotEmpty) {
       return Users.fromMap(maps.first);
     }
@@ -106,8 +156,9 @@ class DatabaseHelper {
     final db = await database;
     final now = DateTime.now().toIso8601String();
     final result = await db.rawQuery(
-        'SELECT COUNT(*) FROM viagens WHERE userId = ? AND dataChegada < ?',
-        [userId, now]);
+      'SELECT COUNT(*) FROM viagens WHERE userId = ? AND dataChegada < ?',
+      [userId, now],
+    );
     return Sqflite.firstIntValue(result) ?? 0;
   }
 
@@ -115,8 +166,9 @@ class DatabaseHelper {
     final db = await database;
     final now = DateTime.now().toIso8601String();
     final result = await db.rawQuery(
-        'SELECT COUNT(*) FROM viagens WHERE userId = ? AND dataIda >= ?',
-        [userId, now]);
+      'SELECT COUNT(*) FROM viagens WHERE userId = ? AND dataIda >= ?',
+      [userId, now],
+    );
     return Sqflite.firstIntValue(result) ?? 0;
   }
 
@@ -130,8 +182,11 @@ class DatabaseHelper {
     );
   }
 
-  // --- MÉTODO PARA ALTERAR A SENHA (O QUE ESTAVA FALTANDO) ---
-  Future<bool> changePassword(int userId, String oldPassword, String newPassword) async {
+  Future<bool> changePassword(
+    int userId,
+    String oldPassword,
+    String newPassword,
+  ) async {
     final db = await database;
     var result = await db.query(
       'users',
@@ -154,11 +209,14 @@ class DatabaseHelper {
 
   // Métodos de Autenticação
   Future<Users?> login(Users user) async {
-    final Database db = await database; // Correção para usar a instância do getter
-    var result = await db.query("users",
-        where: "usrName = ? AND usrPassword = ?",
-        whereArgs: [user.usrName, user.usrPassword],
-        limit: 1);
+    final Database db =
+        await database; // Correção para usar a instância do getter
+    var result = await db.query(
+      "users",
+      where: "usrName = ? AND usrPassword = ?",
+      whereArgs: [user.usrName, user.usrPassword],
+      limit: 1,
+    );
     if (result.isNotEmpty) {
       return Users.fromMap(result.first);
     } else {
@@ -167,7 +225,8 @@ class DatabaseHelper {
   }
 
   Future<int?> Signup(Users user) async {
-    final Database db = await database; // Correção para usar a instância do getter
+    final Database db =
+        await database; // Correção para usar a instância do getter
     try {
       final id = await db.insert('users', user.toMap());
       return id;

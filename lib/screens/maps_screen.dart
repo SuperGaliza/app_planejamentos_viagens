@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:geocoding/geocoding.dart';
+// import 'package:geolocator/geolocator.dart'; // <<< REMOVER ESTE IMPORT
+import 'package:geocoding/geocoding.dart'
+    as geocoding; // <<< MANTER E ALIAS PARA EVITAR CONFLITO
 import '../database/database_helper.dart';
-import '../utils/session_manager.dart'; // <<< NOVO IMPORT
+import '../utils/session_manager.dart';
 
 class MapsScreen extends StatefulWidget {
   const MapsScreen({super.key});
@@ -14,144 +15,82 @@ class MapsScreen extends StatefulWidget {
 
 class _MapsScreenState extends State<MapsScreen> {
   GoogleMapController? _mapController;
-  LatLng _posicaoInicial = const LatLng(-23.55052, -46.633308); // São Paulo
+  // Coordenadas de Teresina, PI
+  static const LatLng _teresinaLatLng = LatLng(
+    -5.093557,
+    -42.825866,
+  ); // Teresina, PI
+
+  // Define Teresina como posição inicial padrão para o mapa
+  LatLng _posicaoInicial = _teresinaLatLng;
   Set<Marker> _marcadoresViagens = {};
-  Marker? _marcadorLocalAtual;
+  Marker?
+  _marcadorLocalAtual; // O marcador da localização "atual" (Teresina mockada)
   final dbHelper = DatabaseHelper();
   bool _carregando = true;
-  int? _currentUserId; // <<< NOVO CAMPO: Para armazenar o ID do usuário logado
+  int? _currentUserId;
 
   @override
   void initState() {
     super.initState();
-    _loadUserIdAndAllMapData(); // Inicia o carregamento do userId e dos dados do mapa
+    _loadUserIdAndAllMapData();
   }
 
-  // Novo método para carregar o userId e depois todos os dados do mapa
   Future<void> _loadUserIdAndAllMapData() async {
+    setState(() {
+      _carregando = true;
+    });
     _currentUserId = await SessionManager.getLoggedInUserId();
     if (!mounted) return;
 
     if (_currentUserId != null) {
-      // Se há um userId, proceed to load map data
-      await _carregarTudo();
+      // Chama o método para definir a localização fixa de Teresina
+      _definirLocalizacaoMockadaETeresina();
+      // Em seguida, adiciona os marcadores das viagens
+      await _adicionarMarcadoresDasViagens();
+      if (_mapController != null) {
+        _centralizarMapa();
+      }
     } else {
-      // Caso não haja userId logado, exibe uma mensagem e para o carregamento
+      // Caso não haja userId logado, exibe uma mensagem
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Erro: Usuário não logado para ver o mapa de viagens.'),
         ),
       );
-      setState(() {
-        _carregando = false;
-      });
-      // Opcional: Redirecionar para a tela de login
-      // Navigator.pushAndRemoveUntil(
-      //   context,
-      //   MaterialPageRoute(builder: (context) => const LoginScreen()),
-      //   (Route<dynamic> route) => false,
-      // );
     }
-  }
-
-  Future<void> _carregarTudo() async {
     setState(() {
-      _carregando = true;
+      _carregando = false;
     });
-
-    try {
-      await _obterLocalizacaoAtual();
-      await _adicionarMarcadoresDasViagens(); // Este método agora usará _currentUserId
-      if (_mapController != null) {
-        _centralizarMapa();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Erro ao carregar o mapa: $e')));
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _carregando = false;
-        });
-      }
-    }
   }
 
-  Future<void> _obterLocalizacaoAtual() async {
-    bool servicoHabilitado = await Geolocator.isLocationServiceEnabled();
-    if (!servicoHabilitado) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Serviço de localização desativado.')),
-        );
-      }
-      return;
-    }
-
-    LocationPermission permissao = await Geolocator.checkPermission();
-    if (permissao == LocationPermission.denied) {
-      permissao = await Geolocator.requestPermission();
-      if (permissao == LocationPermission.denied && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Permissão de localização negada.')),
-        );
-        return;
-      }
-    }
-
-    if (permissao == LocationPermission.deniedForever) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Permissão de localização negada permanentemente.'),
-          ),
-        );
-      }
-      return;
-    }
-
-    try {
-      final posicao = await Geolocator.getCurrentPosition();
-      final localAtual = LatLng(posicao.latitude, posicao.longitude);
-
-      if (mounted) {
-        setState(() {
-          _posicaoInicial = localAtual;
-          _marcadorLocalAtual = Marker(
-            markerId: const MarkerId("local_atual"),
-            position: localAtual,
-            infoWindow: const InfoWindow(title: "Você está aqui"),
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-              BitmapDescriptor.hueAzure,
-            ),
-          );
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao obter localização atual: $e')),
-        );
-      }
-    }
+  // NOVO MÉTODO: Define a localização atual como Teresina, PI e cria o marcador
+  void _definirLocalizacaoMockadaETeresina() {
+    setState(() {
+      _posicaoInicial =
+          _teresinaLatLng; // Garante que o mapa inicializa em Teresina
+      _marcadorLocalAtual = Marker(
+        markerId: const MarkerId("local_atual"),
+        position: _teresinaLatLng,
+        infoWindow: const InfoWindow(title: "Você está aqui (Teresina, PI)"),
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+      );
+    });
   }
 
+  // Este método adiciona os marcadores das viagens do usuário
   Future<void> _adicionarMarcadoresDasViagens() async {
-    // Garante que temos um userId antes de tentar listar as viagens
     if (_currentUserId == null) return;
 
-    // AQUI ESTÁ A MUDANÇA PRINCIPAL: Passa _currentUserId para listarViagens
-    final viagens = await dbHelper.listarViagens(
-      _currentUserId!,
-    ); // <<< CORREÇÃO AQUI
+    final viagens = await dbHelper.listarViagens(_currentUserId!);
     final Set<Marker> novosMarcadores = {};
 
     for (var viagem in viagens) {
       try {
-        List<Location> locais = await locationFromAddress(viagem.destino);
+        // Usa geocoding.locationFromAddress para converter o destino (string) em coordenadas
+        List<geocoding.Location> locais = await geocoding.locationFromAddress(
+          viagem.destino,
+        );
         if (locais.isNotEmpty) {
           final coordenada = LatLng(locais[0].latitude, locais[0].longitude);
           novosMarcadores.add(
@@ -162,6 +101,10 @@ class _MapsScreenState extends State<MapsScreen> {
                 title: viagem.titulo,
                 snippet:
                     '${viagem.destino} - R\$${viagem.orcamento.toStringAsFixed(2)}',
+              ),
+              // Opcional: Usar a cor da viagem para o marcador
+              icon: BitmapDescriptor.defaultMarkerWithHue(
+                _getColorHue(viagem.corHex),
               ),
             ),
           );
@@ -187,6 +130,37 @@ class _MapsScreenState extends State<MapsScreen> {
     }
   }
 
+  // Função auxiliar para tentar mapear a cor da viagem para o HUE do marcador
+  double _getColorHue(String? corHex) {
+    if (corHex != null && corHex.isNotEmpty) {
+      try {
+        final int colorValue = int.parse(corHex);
+        final Color color = Color(colorValue);
+
+        // Mapeamento simplificado de cores para HUEs conhecidos do Google Maps
+        if (color.red > 200 && color.green < 100 && color.blue < 100)
+          return BitmapDescriptor.hueRed;
+        if (color.green > 200 && color.red < 100 && color.blue < 100)
+          return BitmapDescriptor.hueGreen;
+        if (color.blue > 200 && color.red < 100 && color.green < 100)
+          return BitmapDescriptor.hueBlue;
+        if (color.red > 200 && color.green > 200 && color.blue < 100)
+          return BitmapDescriptor.hueYellow;
+        if (color.red < 100 && color.blue > 200 && color.green < 100)
+          return BitmapDescriptor.hueViolet;
+        if (color.red > 200 && color.blue > 200 && color.green < 100)
+          return BitmapDescriptor.hueMagenta; // Ou violet
+
+        // Fallback para um padrão se a cor não for "pura" ou não mapeada
+        return BitmapDescriptor.hueOrange;
+      } catch (e) {
+        return BitmapDescriptor
+            .hueOrange; // Fallback em caso de erro de parsing
+      }
+    }
+    return BitmapDescriptor.hueOrange; // Padrão se corHex for nulo/vazio
+  }
+
   void _centralizarMapa() {
     final allMarkers = <Marker>{};
     if (_marcadorLocalAtual != null) {
@@ -194,9 +168,14 @@ class _MapsScreenState extends State<MapsScreen> {
     }
     allMarkers.addAll(_marcadoresViagens);
 
-    if (allMarkers.isEmpty) return; // Nenhuma marcação para centralizar
+    // Se não há outros marcadores, apenas centralize em Teresina com um zoom razoável
+    if (allMarkers.isEmpty) {
+      _mapController?.animateCamera(
+        CameraUpdate.newLatLngZoom(_teresinaLatLng, 12),
+      );
+      return;
+    }
 
-    // Calcular os limites para incluir todos os marcadores
     double minLat = allMarkers.first.position.latitude;
     double maxLat = allMarkers.first.position.latitude;
     double minLng = allMarkers.first.position.longitude;
@@ -216,13 +195,11 @@ class _MapsScreenState extends State<MapsScreen> {
       northeast: LatLng(maxLat, maxLng),
     );
 
-    // Adiciona um pequeno padding para que os marcadores não fiquem na borda
     _mapController?.animateCamera(CameraUpdate.newLatLngBounds(bounds, 70));
   }
 
   void _aoCriarMapa(GoogleMapController controller) {
     _mapController = controller;
-    // Tenta centralizar o mapa uma vez que ele está pronto e os dados já podem ter sido carregados
     if (!_carregando) {
       _centralizarMapa();
     }
@@ -242,11 +219,13 @@ class _MapsScreenState extends State<MapsScreen> {
         children: [
           GoogleMap(
             initialCameraPosition: CameraPosition(
-              target: _posicaoInicial,
+              target: _posicaoInicial, // Mapa inicializa em Teresina
               zoom: 10,
             ),
-            myLocationEnabled: true,
-            myLocationButtonEnabled: true,
+            myLocationEnabled:
+                false, // Desabilita o ponto azul da localização real
+            myLocationButtonEnabled:
+                false, // Desabilita o botão de centralizar na localização real
             onMapCreated: _aoCriarMapa,
             markers: {
               if (_marcadorLocalAtual != null) _marcadorLocalAtual!,
