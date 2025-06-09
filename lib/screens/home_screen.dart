@@ -1,12 +1,13 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:app_planejamentos_viagens/screens/travel_screen.dart';
 import 'package:app_planejamentos_viagens/screens/profile_screen.dart';
-import 'package:app_planejamentos_viagens/screens/placeholder_screen.dart';
 import 'package:app_planejamentos_viagens/screens/search_results_screen.dart';
+import 'package:app_planejamentos_viagens/Authentication/login_screen.dart';
+import 'package:app_planejamentos_viagens/utils/session_manager.dart';
 
-// --- TELA PRINCIPAL (HOME) ---
-
+// --- ESTRUTURA PRINCIPAL COM NAVEGAÇÃO (SEM ALTERAÇÕES) ---
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -19,8 +20,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final screens = [
     const SimpleHomeContent(),
-    TravelScreen(),
-    const ProfileScreen(), // Usando a nova ProfileScreen
+    const TravelScreen(),
+    const ProfileScreen(),
   ];
 
   @override
@@ -36,18 +37,17 @@ class _HomeScreenState extends State<HomeScreen> {
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.home),
-            label: 'Home',
+            label: 'Início',
             backgroundColor: Color(0xFF4A90E2),
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.flight),
-            label: 'Travel',
+            label: 'Viagens',
             backgroundColor: Color(0xFFF77764),
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person),
-            label: 'Profile',
-            // Usando a nova cor verde-azulado mais suave
+            label: 'Perfil',
             backgroundColor: Color(0xFF4DB6AC),
           ),
         ],
@@ -56,8 +56,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// --- WIDGET DE CONTEÚDO DA HOME ---
-// Este é o "recheio" da sua aba Home, com todas as funcionalidades.
+// --- WIDGET DE CONTEÚDO DA HOME (COM AS SUAS ALTERAÇÕES) ---
 
 class SimpleHomeContent extends StatefulWidget {
   const SimpleHomeContent({super.key});
@@ -68,6 +67,8 @@ class SimpleHomeContent extends StatefulWidget {
 
 class _SimpleHomeContentState extends State<SimpleHomeContent> {
   final _searchController = TextEditingController();
+
+  // --- DADOS PARA A DICA DO DIA ---
   final List<String> _tips = [
     'Sempre salve uma cópia digital do seu passaporte na nuvem.',
     'Leve um carregador portátil para não ficar sem bateria.',
@@ -75,18 +76,67 @@ class _SimpleHomeContentState extends State<SimpleHomeContent> {
     'Experimente a comida de rua para uma autêntica experiência cultural.',
     'Use sapatos confortáveis. Você vai andar mais do que imagina!',
   ];
-
   late String _randomTip;
+
+  // --- DADOS PARA O CARROSSEL DE IMAGENS ---
+  final List<Map<String, String>> _inspirationData = [
+    {
+      "image": "lib/assets/inspiration_japan.png", // <<< Insira o caminho da sua imagem aqui
+      "text": "Explore a cultura do Japão"
+    },
+    {
+      "image": "lib/assets/inspiration_italy.png", // <<< Insira o caminho da sua imagem aqui
+      "text": "Descubra a beleza da Itália"
+    },
+    {
+      "image": "lib/assets/inspiration_egypt.png", // <<< Insira o caminho da sua imagem aqui
+      "text": "Desvende os mistérios do Egito"
+    },
+    {
+      "image": "lib/assets/inspiration_brazil.png", // <<< Insira o caminho da sua imagem aqui
+      "text": "Aventure-se pelas paisagens do Brasil"
+    },
+    {
+      "image": "lib/assets/inspiration_norway.png", // <<< Insira o caminho da sua imagem aqui
+      "text": "Contemple a aurora boreal na Noruega"
+    },
+  ];
+
+  late PageController _pageController;
+  int _currentPage = 0;
+  Timer? _timer;
 
   @override
   void initState() {
     super.initState();
+    // Inicializa a dica aleatória
     _randomTip = _tips[Random().nextInt(_tips.length)];
+
+    // Inicializa o PageController para o carrossel
+    _pageController = PageController(viewportFraction: 0.85, initialPage: 0);
+
+    // Inicia o timer para o carrossel automático
+    _timer = Timer.periodic(const Duration(seconds: 5), (Timer timer) {
+      if (_currentPage < _inspirationData.length - 1) {
+        _currentPage++;
+      } else {
+        _currentPage = 0;
+      }
+      if (_pageController.hasClients) {
+        _pageController.animateToPage(
+          _currentPage,
+          duration: const Duration(milliseconds: 600),
+          curve: Curves.easeIn,
+        );
+      }
+    });
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _pageController.dispose();
+    _timer?.cancel(); // Cancela o timer para evitar memory leaks
     super.dispose();
   }
 
@@ -99,10 +149,28 @@ class _SimpleHomeContentState extends State<SimpleHomeContent> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildHeader(context),
-            const SizedBox(height: 30),
-            _buildCategoryButtons(context),
-            const SizedBox(height: 30),
+            const SizedBox(height: 24),
+            
+            // --- DICA DO DIA (AGORA MAIS ALTA NA TELA) ---
             _buildTipOfTheDayCard(),
+            const SizedBox(height: 24),
+            
+            // --- TÍTULO PARA A NOVA SEÇÃO DE INSPIRAÇÃO ---
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20.0),
+              child: Text(
+                'Inspire-se para sua próxima viagem',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF333333),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            
+            // --- NOVO CARROSSEL DE IMAGENS ---
+            _buildInspirationCarousel(),
             const SizedBox(height: 20),
           ],
         ),
@@ -110,6 +178,7 @@ class _SimpleHomeContentState extends State<SimpleHomeContent> {
     );
   }
 
+  // --- WIDGET DO CABEÇALHO (SEM ALTERAÇÕES) ---
   Widget _buildHeader(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 60, 20, 30),
@@ -135,16 +204,17 @@ class _SimpleHomeContentState extends State<SimpleHomeContent> {
                 ),
               ),
               IconButton(
-                icon: const Icon(
-                  Icons.logout,
-                  color: Colors.white,
-                  size: 28,
-                ),
-                onPressed: () {
-                  // Esta ação agora deve estar na tela de Perfil,
-                  // mas mantemos aqui caso você queira ter em ambos os lugares.
-                  // A forma mais segura de sair é pela tela de Perfil.
-                  Navigator.of(context).pop();
+                icon: const Icon(Icons.logout, color: Colors.white, size: 28),
+                onPressed: () async {
+                  await SessionManager.clearSession();
+                  if (!mounted) return;
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const LoginScreen(),
+                    ),
+                    (Route<dynamic> route) => false,
+                  );
                 },
               ),
             ],
@@ -163,8 +233,8 @@ class _SimpleHomeContentState extends State<SimpleHomeContent> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) =>
-                          SearchResultsScreen(searchQuery: value),
+                      builder:
+                          (context) => SearchResultsScreen(searchQuery: value),
                     ),
                   );
                 }
@@ -181,86 +251,94 @@ class _SimpleHomeContentState extends State<SimpleHomeContent> {
     );
   }
 
-  Widget _buildCategoryButtons(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        _buildCategoryItem(context, icon: Icons.flight_takeoff, label: 'Voos'),
-        _buildCategoryItem(context, icon: Icons.hotel, label: 'Hotéis'),
-        _buildCategoryItem(context, icon: Icons.local_offer, label: 'Ofertas'),
-        _buildCategoryItem(context, icon: Icons.directions_car, label: 'Carros'),
-      ],
-    );
-  }
-
-  Widget _buildCategoryItem(BuildContext context,
-      {required IconData icon, required String label}) {
-    return InkWell(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-              builder: (context) => PlaceholderScreen(title: label)),
-        );
-      },
-      borderRadius: BorderRadius.circular(20),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withOpacity(0.15),
-                  spreadRadius: 1,
-                  blurRadius: 10,
-                ),
-              ],
-            ),
-            child: Icon(icon, color: const Color(0xFF4A90E2), size: 36),
+  // --- WIDGET DA DICA DO DIA (SEM ALTERAÇÕES NA LÓGICA) ---
+  Widget _buildTipOfTheDayCard() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20.0),
+      child: Card(
+        elevation: 2,
+        shadowColor: Colors.black.withOpacity(0.1),
+        color: Colors.blue.shade50,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(15),
+        ),
+        child: ListTile(
+          leading: const Icon(
+            Icons.lightbulb_outline,
+            color: Colors.blue,
+            size: 30,
           ),
-          const SizedBox(height: 8),
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
-        ],
+          title: const Text(
+            'Dica de Viagem',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          subtitle: Text(_randomTip),
+        ),
       ),
     );
   }
 
-  Widget _buildTipOfTheDayCard() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Dica do Dia',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey[800],
-            ),
-          ),
-          const SizedBox(height: 10),
-          Card(
-            elevation: 2,
-            shadowColor: Colors.black.withOpacity(0.1),
-            color: Colors.blue.shade50,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(15),
-            ),
-            child: ListTile(
-              leading: const Icon(Icons.lightbulb_outline,
-                  color: Colors.blue, size: 30),
-              title: const Text(
-                'Dica de Viagem',
-                style: TextStyle(fontWeight: FontWeight.bold),
+  // --- NOVO WIDGET: CARROSSEL DE INSPIRAÇÃO ---
+  Widget _buildInspirationCarousel() {
+    return SizedBox(
+      height: 220, // Altura do carrossel
+      child: PageView.builder(
+        controller: _pageController,
+        itemCount: _inspirationData.length,
+        itemBuilder: (context, index) {
+          final item = _inspirationData[index];
+          return Container(
+            margin: const EdgeInsets.symmetric(horizontal: 8),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(15.0),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // Imagem de fundo
+                  Image.asset(
+                    item['image']!,
+                    fit: BoxFit.cover,
+                    // Em caso de erro na imagem, mostra um container cinza
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(color: Colors.grey.shade300, child: Icon(Icons.image_not_supported, color: Colors.grey.shade600));
+                    },
+                  ),
+                  // Gradiente para garantir a legibilidade do texto
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.bottomCenter,
+                        end: Alignment.center,
+                        colors: [Colors.black.withOpacity(0.7), Colors.transparent],
+                      ),
+                    ),
+                  ),
+                  // Texto posicionado na parte inferior
+                  Positioned(
+                    bottom: 20,
+                    left: 20,
+                    right: 20,
+                    child: Text(
+                      item['text']!,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        shadows: [ // Sombra no texto para melhor leitura
+                          Shadow(
+                            blurRadius: 10.0,
+                            color: Colors.black,
+                            offset: Offset(2.0, 2.0),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              subtitle: Text(_randomTip),
             ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }
