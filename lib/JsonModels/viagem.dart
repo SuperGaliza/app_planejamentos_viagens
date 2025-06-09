@@ -1,13 +1,11 @@
 // lib/JsonModels/viagem.dart
-// Certifique-se de ter import 'dart:convert'; para jsonEncode/jsonDecode
-import 'dart:convert'; // Para trabalhar com JSON
-import 'package:flutter/material.dart'; // Mantido caso haja alguma dependência, mas pode não ser necessário aqui
+import 'dart:convert';
 
 class Viagem {
   int? id;
   String titulo;
   String destino;
-  double orcamento; // Será o total calculado
+  double orcamento;
   DateTime dataIda;
   DateTime dataChegada;
   String? corHex;
@@ -17,9 +15,12 @@ class Viagem {
   double alimentacao;
   double despesasDiversas;
   double passeios;
-  // <<< NOVO CAMPO: Para armazenar a checklist como JSON
-  String? checklistJson; // String JSON da checklist
-  // FIM DO NOVO CAMPO
+
+  // NOVOS CAMPOS PARA ARMAZENAR DADOS COMPLEXOS
+  String? checklistJson;
+  String? galleryImagePathsJson;
+  String? notes;
+  String? linksJson;
 
   Viagem({
     this.id,
@@ -35,8 +36,55 @@ class Viagem {
     this.alimentacao = 0.0,
     this.despesasDiversas = 0.0,
     this.passeios = 0.0,
-    this.checklistJson, // <<< Adicione ao construtor
+    this.checklistJson,
+    this.galleryImagePathsJson,
+    this.notes,
+    this.linksJson,
   });
+
+  // Métodos de ajuda para a checklist
+  List<Map<String, dynamic>> getChecklistAsMapList() {
+    if (checklistJson == null || checklistJson!.isEmpty) return [];
+    try {
+      final List<dynamic> decoded = jsonDecode(checklistJson!);
+      return List<Map<String, dynamic>>.from(decoded);
+    } catch (e) {
+      return [];
+    }
+  }
+
+  void setChecklistFromJsonList(List<Map<String, dynamic>> checklist) {
+    checklistJson = jsonEncode(checklist);
+  }
+
+  // Métodos de ajuda para a galeria
+  List<String> getGalleryImagePaths() {
+    if (galleryImagePathsJson == null || galleryImagePathsJson!.isEmpty) return [];
+    try {
+      return List<String>.from(jsonDecode(galleryImagePathsJson!));
+    } catch (e) {
+      return [];
+    }
+  }
+
+  void setGalleryImagePaths(List<String> paths) {
+    galleryImagePathsJson = jsonEncode(paths);
+  }
+
+  // Métodos de ajuda para os links
+  List<Map<String, String>> getLinks() {
+    if (linksJson == null || linksJson!.isEmpty) return [];
+    try {
+      final List<dynamic> decoded = jsonDecode(linksJson!);
+      return List<Map<String, String>>.from(decoded);
+    } catch (e) {
+      return [];
+    }
+  }
+
+  void setLinks(List<Map<String, String>> links) {
+    linksJson = jsonEncode(links);
+  }
 
   factory Viagem.fromMap(Map<String, dynamic> map) {
     return Viagem(
@@ -51,12 +99,12 @@ class Viagem {
       hospedagem: map['hospedagem']?.toDouble() ?? 0.0,
       transporte: map['transporte']?.toDouble() ?? 0.0,
       alimentacao: map['alimentacao']?.toDouble() ?? 0.0,
-      despesasDiversas:
-          map['despesasDiversas']?.toDouble() ??
-          map['presentes']?.toDouble() ??
-          0.0,
+      despesasDiversas: map['despesasDiversas']?.toDouble() ?? map['presentes']?.toDouble() ?? 0.0,
       passeios: map['passeios']?.toDouble() ?? 0.0,
-      checklistJson: map['checklistJson'] as String?, // <<< Leia do mapa
+      checklistJson: map['checklistJson'],
+      galleryImagePathsJson: map['galleryImagePathsJson'],
+      notes: map['notes'],
+      linksJson: map['linksJson'],
     );
   }
 
@@ -75,27 +123,10 @@ class Viagem {
       'alimentacao': alimentacao,
       'despesasDiversas': despesasDiversas,
       'passeios': passeios,
-      'checklistJson': checklistJson, // <<< Escreva no mapa
+      'checklistJson': checklistJson,
+      'galleryImagePathsJson': galleryImagePathsJson,
+      'notes': notes,
+      'linksJson': linksJson,
     };
-  }
-
-  // --- MÉTODOS DE CONVENIÊNCIA PARA CHECKLIST ---
-  // Para converter o JSON da checklist para List<Map<String, dynamic>>
-  List<Map<String, dynamic>> getChecklistAsMapList() {
-    if (checklistJson == null || checklistJson!.isEmpty) {
-      return [];
-    }
-    try {
-      // jsonDecode retorna um List<dynamic>, precisamos converter para List<Map<String, dynamic>>
-      return (jsonDecode(checklistJson!) as List).cast<Map<String, dynamic>>();
-    } catch (e) {
-      print("Erro ao decodificar checklist JSON: $e");
-      return [];
-    }
-  }
-
-  // Para atualizar o JSON da checklist a partir de List<Map<String, dynamic>>
-  void setChecklistFromJsonList(List<Map<String, dynamic>> checklist) {
-    checklistJson = jsonEncode(checklist);
   }
 }

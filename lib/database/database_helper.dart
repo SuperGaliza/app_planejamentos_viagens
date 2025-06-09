@@ -25,7 +25,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 7, // <<< AUMENTE A VERSÃO AQUI (era 6, AGORA 7)
+      version: 8, // <<< VERSÃO ATUALIZADA PARA 8
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -47,7 +47,10 @@ class DatabaseHelper {
         alimentacao REAL DEFAULT 0.0 NOT NULL,
         despesasDiversas REAL DEFAULT 0.0 NOT NULL,
         passeios REAL DEFAULT 0.0 NOT NULL,
-        checklistJson TEXT -- <<< NOVA COLUNA PARA CHECKLIST
+        checklistJson TEXT,
+        galleryImagePathsJson TEXT,
+        notes TEXT,
+        linksJson TEXT
       )
     ''');
     await db.execute(usersTable);
@@ -67,7 +70,6 @@ class DatabaseHelper {
       await db.execute('ALTER TABLE users ADD COLUMN profileImagePath TEXT');
     }
     if (oldVersion < 5) {
-      // Migração da versão 4 para 5: Adiciona os campos de orçamento detalhado (menos hospedagem e renomeando presentes)
       await db.execute(
         'ALTER TABLE viagens ADD COLUMN transporte REAL DEFAULT 0.0 NOT NULL',
       );
@@ -76,28 +78,31 @@ class DatabaseHelper {
       );
       await db.execute(
         'ALTER TABLE viagens ADD COLUMN presentes REAL DEFAULT 0.0 NOT NULL',
-      ); // Campo original "presentes"
+      );
       await db.execute(
         'ALTER TABLE viagens ADD COLUMN passeios REAL DEFAULT 0.0 NOT NULL',
       );
     }
     if (oldVersion < 6) {
-      // Migração da versão 5 para 6: Adiciona hospedagem e despesasDiversas
       await db.execute(
         'ALTER TABLE viagens ADD COLUMN hospedagem REAL DEFAULT 0.0 NOT NULL',
       );
       await db.execute(
         'ALTER TABLE viagens ADD COLUMN despesasDiversas REAL DEFAULT 0.0 NOT NULL',
       );
-      // No modelo Viagem, faremos a leitura de despesasDiversas OU presentes para compatibilidade
     }
-    // <<< NOVA MIGRAÇÃO PARA A VERSÃO 7: Adiciona coluna para checklistJson
     if (oldVersion < 7) {
       await db.execute('ALTER TABLE viagens ADD COLUMN checklistJson TEXT');
     }
+    // <<< NOVA MIGRAÇÃO PARA A VERSÃO 8 >>>
+    if (oldVersion < 8) {
+      await db.execute('ALTER TABLE viagens ADD COLUMN galleryImagePathsJson TEXT');
+      await db.execute('ALTER TABLE viagens ADD COLUMN notes TEXT');
+      await db.execute('ALTER TABLE viagens ADD COLUMN linksJson TEXT');
+    }
   }
 
-  // Métodos Viagem
+  // --- MÉTODOS DA VIAGEM ---
   Future<int> inserirViagem(Viagem viagem) async {
     final db = await database;
     return await db.insert(
@@ -140,7 +145,23 @@ class DatabaseHelper {
     );
   }
 
-  // Métodos para a Tela de Perfil
+  Future<Viagem?> getNextTrip(int userId) async {
+    final db = await database;
+    final now = DateTime.now();
+    final result = await db.query(
+      'viagens',
+      where: 'userId = ? AND dataIda >= ?',
+      whereArgs: [userId, now.toIso8601String()],
+      orderBy: 'dataIda ASC',
+      limit: 1,
+    );
+    if (result.isNotEmpty) {
+      return Viagem.fromMap(result.first);
+    }
+    return null;
+  }
+
+  // --- MÉTODOS DO USUÁRIO ---
   Future<Users?> getUserById(int id) async {
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.query(
@@ -209,7 +230,6 @@ class DatabaseHelper {
     }
   }
 
-  // Métodos de Autenticação
   Future<Users?> login(Users user) async {
     final Database db = await database;
     var result = await db.query(
