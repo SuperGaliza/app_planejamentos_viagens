@@ -2,19 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import '../JsonModels/viagem.dart';
 import '../widgets/destino_autocomplete.dart';
-// Importe o SessionManager para obter o ID do usuário, caso não seja passado
-import '../utils/session_manager.dart'; // <<< NOVO IMPORT
+import '../utils/session_manager.dart';
 
 class AddViagemScreen extends StatefulWidget {
   final Viagem? viagemExistente;
   final List<Viagem> viagensExistentes;
-  final int? userId; // <<< NOVO PARÂMETRO: O ID do usuário logado
+  final int? userId;
 
   const AddViagemScreen({
     super.key,
     this.viagemExistente,
     required this.viagensExistentes,
-    this.userId, // <<< Adicione ao construtor
+    this.userId,
   });
 
   @override
@@ -24,14 +23,20 @@ class AddViagemScreen extends StatefulWidget {
 class _AddViagemScreenState extends State<AddViagemScreen> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _tituloController;
+  late TextEditingController _destinoController;
+  late TextEditingController _orcamentoController; // Será a soma, readonly
+  late TextEditingController _hospedagemController;
+  late TextEditingController _transporteController;
+  late TextEditingController _alimentacaoController;
   late TextEditingController
-  _destinoController; // Controlado pelo DestinoAutocomplete
-  late TextEditingController _orcamentoController;
+  _despesasDiversasController; // Renomeado de 'presentes'
+  late TextEditingController _passeiosController;
+
   DateTime? _dataIda;
   DateTime? _dataChegada;
   Color _corSelecionada = Colors.blue;
   String? _erroDatas;
-  int? _currentUserId; // Para armazenar o ID do usuário logado nesta tela
+  int? _currentUserId;
 
   final String _apiKey = 'AIzaSyBJlxqOiGAgWuw4TDBg6IGIgmvCrTxLqFE';
 
@@ -40,12 +45,33 @@ class _AddViagemScreenState extends State<AddViagemScreen> {
     super.initState();
     final v = widget.viagemExistente;
     _tituloController = TextEditingController(text: v?.titulo ?? '');
-    _destinoController = TextEditingController(
-      text: v?.destino ?? '',
-    ); // Inicializa com o destino existente
-    _orcamentoController = TextEditingController(
-      text: v?.orcamento.toStringAsFixed(2) ?? '',
+    _destinoController = TextEditingController(text: v?.destino ?? '');
+
+    _hospedagemController = TextEditingController(
+      text: v?.hospedagem.toStringAsFixed(2) ?? '0.00',
     );
+    _transporteController = TextEditingController(
+      text: v?.transporte.toStringAsFixed(2) ?? '0.00',
+    );
+    _alimentacaoController = TextEditingController(
+      text: v?.alimentacao.toStringAsFixed(2) ?? '0.00',
+    );
+    _despesasDiversasController = TextEditingController(
+      text: v?.despesasDiversas.toStringAsFixed(2) ?? '0.00',
+    );
+    _passeiosController = TextEditingController(
+      text: v?.passeios.toStringAsFixed(2) ?? '0.00',
+    );
+
+    _orcamentoController = TextEditingController(
+      text: ((v?.hospedagem ?? 0.0) +
+              (v?.transporte ?? 0.0) +
+              (v?.alimentacao ?? 0.0) +
+              (v?.despesasDiversas ?? 0.0) +
+              (v?.passeios ?? 0.0))
+          .toStringAsFixed(2),
+    );
+
     _dataIda = v?.dataIda ?? DateTime.now();
     _dataChegada =
         v?.dataChegada ?? DateTime.now().add(const Duration(days: 3));
@@ -53,29 +79,61 @@ class _AddViagemScreenState extends State<AddViagemScreen> {
       _corSelecionada = Color(int.tryParse(v.corHex!) ?? Colors.blue.value);
     }
 
-    // Carrega o userId: prioriza o que foi passado, se não, busca do SessionManager
     _currentUserId = widget.userId;
     if (_currentUserId == null) {
       _loadUserId();
     }
+
+    _hospedagemController.addListener(_updateTotalBudget);
+    _transporteController.addListener(_updateTotalBudget);
+    _alimentacaoController.addListener(_updateTotalBudget);
+    _despesasDiversasController.addListener(_updateTotalBudget);
+    _passeiosController.addListener(_updateTotalBudget);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => _updateTotalBudget());
   }
 
-  // Função para carregar o userId do SessionManager caso não seja passado pelo construtor
+  @override
+  void dispose() {
+    _tituloController.dispose();
+    _destinoController.dispose();
+    _orcamentoController.dispose();
+    _hospedagemController.dispose();
+    _transporteController.dispose();
+    _alimentacaoController.dispose();
+    _despesasDiversasController.dispose();
+    _passeiosController.dispose();
+    super.dispose();
+  }
+
+  void _updateTotalBudget() {
+    final double hospedagem =
+        double.tryParse(_hospedagemController.text) ?? 0.0;
+    final double transporte =
+        double.tryParse(_transporteController.text) ?? 0.0;
+    final double alimentacao =
+        double.tryParse(_alimentacaoController.text) ?? 0.0;
+    final double despesasDiversas =
+        double.tryParse(_despesasDiversasController.text) ?? 0.0;
+    final double passeios = double.tryParse(_passeiosController.text) ?? 0.0;
+
+    final double total =
+        hospedagem + transporte + alimentacao + despesasDiversas + passeios;
+
+    final String newTotalText = total.toStringAsFixed(2);
+    if (_orcamentoController.text != newTotalText) {
+      _orcamentoController.text = newTotalText;
+    }
+  }
+
   Future<void> _loadUserId() async {
     _currentUserId = await SessionManager.getLoggedInUserId();
     if (_currentUserId == null && mounted) {
-      // Se não houver userId, algo está errado (usuário não logado ou sessão expirada)
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Erro: Usuário não logado. Faça login novamente.'),
         ),
       );
-      // Opcional: Navegar de volta para a tela de login
-      // Navigator.pushAndRemoveUntil(
-      //   context,
-      //   MaterialPageRoute(builder: (context) => const LoginScreen()),
-      //   (Route<dynamic> route) => false,
-      // );
     }
   }
 
@@ -97,22 +155,17 @@ class _AddViagemScreenState extends State<AddViagemScreen> {
         } else {
           _dataChegada = novaData;
         }
-        _erroDatas = null; // Limpa o erro de datas ao selecionar
+        _erroDatas = null;
       });
     }
   }
 
   bool _temConflitoDatas(DateTime novaIda, DateTime novaChegada) {
     for (var v in widget.viagensExistentes) {
-      // Se estiver editando, pule a própria viagem da lista de conflitos
       if (widget.viagemExistente != null &&
           v.id == widget.viagemExistente!.id) {
         continue;
       }
-      // Verifica se as datas da nova viagem se sobrepõem a uma viagem existente
-      // Uma sobreposição ocorre se:
-      // (novaIda está antes ou no mesmo dia que v.dataChegada) E (novaChegada está depois ou no mesmo dia que v.dataIda)
-      // Normalizamos as datas para considerar apenas o dia, ignorando a hora
       final newTripStart = DateTime(novaIda.year, novaIda.month, novaIda.day);
       final newTripEnd = DateTime(
         novaChegada.year,
@@ -130,7 +183,6 @@ class _AddViagemScreenState extends State<AddViagemScreen> {
         v.dataChegada.day,
       );
 
-      // Checa por sobreposição de intervalos: [A,B] e [C,D] se sobrepõem se max(A,C) <= min(B,D)
       if (newTripStart.isBefore(existingTripEnd.add(const Duration(days: 1))) &&
           newTripEnd.isAfter(
             existingTripStart.subtract(const Duration(days: 1)),
@@ -146,11 +198,9 @@ class _AddViagemScreenState extends State<AddViagemScreen> {
       return false;
     }
 
-    // Validação específica para o destino (se não estiver usando validator no DestinoAutocomplete)
     if (_destinoController.text.trim().isEmpty) {
       setState(() {
-        _erroDatas =
-            'Informe um destino válido'; // Reutilizando _erroDatas para feedback geral de erro de formulário
+        _erroDatas = 'Informe um destino válido';
       });
       return false;
     }
@@ -176,27 +226,37 @@ class _AddViagemScreenState extends State<AddViagemScreen> {
       return false;
     }
 
-    // Se todas as validações passarem, limpa qualquer erro anterior
+    final double orcamentoTotal =
+        double.tryParse(_orcamentoController.text) ?? 0.0;
+    if (orcamentoTotal <= 0) {
+      setState(() {
+        _erroDatas = 'O orçamento total deve ser maior que 0.';
+      });
+      return false;
+    }
+
     setState(() => _erroDatas = null);
     return true;
   }
 
   void _salvar() {
-    // Não precisa de setState aqui, _formularioValido já lida com _erroDatas
     if (!_formularioValido()) {
       return;
     }
 
-    final orcamento = double.tryParse(_orcamentoController.text);
-    // Este validator já está no TextFormField, mas um último check é bom
-    if (orcamento == null || orcamento <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Informe um orçamento válido (> 0)')),
-      );
-      return;
-    }
+    final double hospedagem =
+        double.tryParse(_hospedagemController.text) ?? 0.0;
+    final double transporte =
+        double.tryParse(_transporteController.text) ?? 0.0;
+    final double alimentacao =
+        double.tryParse(_alimentacaoController.text) ?? 0.0;
+    final double despesasDiversas =
+        double.tryParse(_despesasDiversasController.text) ?? 0.0;
+    final double passeios = double.tryParse(_passeiosController.text) ?? 0.0;
 
-    // Verifica se o userId está disponível
+    final double orcamentoTotal =
+        hospedagem + transporte + alimentacao + despesasDiversas + passeios;
+
     if (_currentUserId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -206,16 +266,38 @@ class _AddViagemScreenState extends State<AddViagemScreen> {
       return;
     }
 
-    // Cria a nova Viagem com o userId
+    final int? finalUserId;
+    if (widget.viagemExistente != null) {
+      finalUserId = widget.viagemExistente!.userId;
+    } else {
+      finalUserId = _currentUserId;
+    }
+
+    if (finalUserId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Erro: ID do usuário não disponível para salvar a viagem. Tente novamente.',
+          ),
+        ),
+      );
+      return;
+    }
+
     final novaViagem = Viagem(
-      id: widget.viagemExistente?.id, // Manter o ID se for edição
+      id: widget.viagemExistente?.id,
       titulo: _tituloController.text.trim(),
       destino: _destinoController.text.trim(),
-      orcamento: orcamento,
+      orcamento: orcamentoTotal,
       dataIda: _dataIda!,
       dataChegada: _dataChegada!,
       corHex: _corSelecionada.value.toString(),
-      userId: _currentUserId!, // <<< PASSA O userId AQUI PARA O MODELO VIAGEM
+      userId: finalUserId,
+      hospedagem: hospedagem,
+      transporte: transporte,
+      alimentacao: alimentacao,
+      despesasDiversas: despesasDiversas,
+      passeios: passeios,
     );
 
     Navigator.pop(context, novaViagem);
@@ -225,7 +307,12 @@ class _AddViagemScreenState extends State<AddViagemScreen> {
     final temDados =
         _tituloController.text.isNotEmpty ||
         _destinoController.text.isNotEmpty ||
-        _orcamentoController.text.isNotEmpty;
+        _orcamentoController.text.isNotEmpty ||
+        _hospedagemController.text.isNotEmpty ||
+        _transporteController.text.isNotEmpty ||
+        _alimentacaoController.text.isNotEmpty ||
+        _despesasDiversasController.text.isNotEmpty ||
+        _passeiosController.text.isNotEmpty;
 
     if (!temDados) return true;
 
@@ -249,6 +336,32 @@ class _AddViagemScreenState extends State<AddViagemScreen> {
     );
 
     return sair ?? false;
+  }
+
+  // Método auxiliar para criar os TextFormField de orçamento detalhado
+  Widget _buildBudgetDetailField(
+    TextEditingController controller,
+    String labelText,
+  ) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      decoration: InputDecoration(
+        labelText: labelText,
+        prefixText: 'R\$ ',
+        border: const OutlineInputBorder(),
+      ),
+      validator: (value) {
+        final v = double.tryParse(
+          value ?? '0.0',
+        ); // <<< CORREÇÃO AQUI: '0.0' como fallback para parse
+        if (v == null || v < 0) {
+          return 'Informe um valor válido (>= 0)';
+        }
+        return null;
+      },
+      onChanged: (_) => _updateTotalBudget(),
+    );
   }
 
   @override
@@ -279,43 +392,70 @@ class _AddViagemScreenState extends State<AddViagemScreen> {
                 const SizedBox(height: 16),
 
                 SizedBox(
-                  height:
-                      200, // Altura pode ser ajustada ou removida para flexibilidade
+                  height: 200,
                   child: DestinoAutocomplete(
                     apiKey: _apiKey,
-                    controller:
-                        _destinoController, // <<< PASSA O CONTROLLER AQUI
+                    controller: _destinoController,
                     onPlaceSelected: (descricao) {
                       setState(() => _destinoController.text = descricao);
-                      _formKey.currentState
-                          ?.validate(); // Força a revalidação do formulário
+                      _formKey.currentState?.validate();
                     },
                   ),
                 ),
                 const SizedBox(height: 16),
 
+                // CAMPO DE ORÇAMENTO TOTAL (SEMPRE VISÍVEL E SOMENTE LEITURA)
                 TextFormField(
                   controller: _orcamentoController,
+                  readOnly: true, // Sempre somente leitura
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
-                  decoration: const InputDecoration(
-                    labelText: 'Orçamento',
+                  decoration: InputDecoration(
+                    labelText: 'Orçamento Total',
                     prefixText: 'R\$ ',
+                    border: const OutlineInputBorder(),
+                    filled:
+                        true, // Sempre preenchido para visual de somente leitura
+                    fillColor:
+                        Colors.grey[200], // Cor de fundo para somente leitura
                   ),
                   validator: (value) {
-                    final v = double.tryParse(value ?? '');
+                    final v = double.tryParse(value ?? '0.0');
                     if (v == null || v <= 0) {
-                      return 'Informe um valor válido (> 0)';
+                      return 'O orçamento total deve ser maior que 0.';
                     }
                     return null;
                   },
                 ),
                 const SizedBox(height: 16),
+                const Divider(height: 32, thickness: 1), // Separador
+                const Text(
+                  'Detalhes do Orçamento',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
 
+                // CAMPO DE ORÇAMENTO DETALHADO (AGORA SEMPRE VISÍVEIS)
+                _buildBudgetDetailField(_hospedagemController, 'Hospedagem'),
+                const SizedBox(height: 16),
+                _buildBudgetDetailField(_transporteController, 'Transporte'),
+                const SizedBox(height: 16),
+                _buildBudgetDetailField(_alimentacaoController, 'Alimentação'),
+                const SizedBox(height: 16),
+                _buildBudgetDetailField(
+                  _despesasDiversasController,
+                  'Despesas Diversas',
+                ),
+                const SizedBox(height: 16),
+                _buildBudgetDetailField(_passeiosController, 'Passeios'),
+                const SizedBox(height: 16),
+
+                // FIM DOS CAMPOS DE ORÇAMENTO DETALHADO
                 ListTile(
                   title: const Text('Data de ida'),
                   subtitle: Text(
+                    // <<< LINHA COM ERRO DE FORMATAÇÃO NO SEU TERMINAL (linha 410 no seu output)
                     _dataIda != null
                         ? '${_dataIda!.day}/${_dataIda!.month}/${_dataIda!.year}'
                         : 'Selecione',

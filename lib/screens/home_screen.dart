@@ -7,7 +7,7 @@ import 'package:app_planejamentos_viagens/screens/search_results_screen.dart';
 import 'package:app_planejamentos_viagens/Authentication/login_screen.dart';
 import 'package:app_planejamentos_viagens/utils/session_manager.dart';
 
-// --- ESTRUTURA PRINCIPAL COM NAVEGAÇÃO (SEM ALTERAÇÕES) ---
+// --- ESTRUTURA PRINCIPAL COM NAVEGAÇÃO ---
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -20,7 +20,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final screens = [
     const SimpleHomeContent(),
-    const TravelScreen(),
+    const TravelScreen(), // Mantendo comentário da outra versão
     const ProfileScreen(),
   ];
 
@@ -57,7 +57,6 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 // --- WIDGET DE CONTEÚDO DA HOME (COM AS SUAS ALTERAÇÕES) ---
-
 class SimpleHomeContent extends StatefulWidget {
   const SimpleHomeContent({super.key});
 
@@ -81,23 +80,23 @@ class _SimpleHomeContentState extends State<SimpleHomeContent> {
   // --- DADOS PARA O CARROSSEL DE IMAGENS ---
   final List<Map<String, String>> _inspirationData = [
     {
-      "image": "lib/assets/inspiration_japan.png", // <<< Insira o caminho da sua imagem aqui
+      "image": "lib/assets/inspiration_japan.png",
       "text": "Explore a cultura do Japão"
     },
     {
-      "image": "lib/assets/inspiration_italy.png", // <<< Insira o caminho da sua imagem aqui
+      "image": "lib/assets/inspiration_italy.png",
       "text": "Descubra a beleza da Itália"
     },
     {
-      "image": "lib/assets/inspiration_egypt.png", // <<< Insira o caminho da sua imagem aqui
+      "image": "lib/assets/inspiration_egypt.png",
       "text": "Desvende os mistérios do Egito"
     },
     {
-      "image": "lib/assets/inspiration_brazil.png", // <<< Insira o caminho da sua imagem aqui
+      "image": "lib/assets/inspiration_brazil.png",
       "text": "Aventure-se pelas paisagens do Brasil"
     },
     {
-      "image": "lib/assets/inspiration_norway.png", // <<< Insira o caminho da sua imagem aqui
+      "image": "lib/assets/inspiration_norway.png",
       "text": "Contemple a aurora boreal na Noruega"
     },
   ];
@@ -109,13 +108,9 @@ class _SimpleHomeContentState extends State<SimpleHomeContent> {
   @override
   void initState() {
     super.initState();
-    // Inicializa a dica aleatória
     _randomTip = _tips[Random().nextInt(_tips.length)];
-
-    // Inicializa o PageController para o carrossel
     _pageController = PageController(viewportFraction: 0.85, initialPage: 0);
 
-    // Inicia o timer para o carrossel automático
     _timer = Timer.periodic(const Duration(seconds: 5), (Timer timer) {
       if (_currentPage < _inspirationData.length - 1) {
         _currentPage++;
@@ -136,7 +131,7 @@ class _SimpleHomeContentState extends State<SimpleHomeContent> {
   void dispose() {
     _searchController.dispose();
     _pageController.dispose();
-    _timer?.cancel(); // Cancela o timer para evitar memory leaks
+    _timer?.cancel();
     super.dispose();
   }
 
@@ -150,12 +145,8 @@ class _SimpleHomeContentState extends State<SimpleHomeContent> {
           children: [
             _buildHeader(context),
             const SizedBox(height: 24),
-            
-            // --- DICA DO DIA (AGORA MAIS ALTA NA TELA) ---
             _buildTipOfTheDayCard(),
             const SizedBox(height: 24),
-            
-            // --- TÍTULO PARA A NOVA SEÇÃO DE INSPIRAÇÃO ---
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 20.0),
               child: Text(
@@ -168,8 +159,6 @@ class _SimpleHomeContentState extends State<SimpleHomeContent> {
               ),
             ),
             const SizedBox(height: 16),
-            
-            // --- NOVO CARROSSEL DE IMAGENS ---
             _buildInspirationCarousel(),
             const SizedBox(height: 20),
           ],
@@ -178,7 +167,6 @@ class _SimpleHomeContentState extends State<SimpleHomeContent> {
     );
   }
 
-  // --- WIDGET DO CABEÇALHO (SEM ALTERAÇÕES) ---
   Widget _buildHeader(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 60, 20, 30),
@@ -233,8 +221,8 @@ class _SimpleHomeContentState extends State<SimpleHomeContent> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder:
-                          (context) => SearchResultsScreen(searchQuery: value),
+                      builder: (context) =>
+                          SearchResultsScreen(searchQuery: value),
                     ),
                   );
                 }
@@ -251,7 +239,6 @@ class _SimpleHomeContentState extends State<SimpleHomeContent> {
     );
   }
 
-  // --- WIDGET DA DICA DO DIA (SEM ALTERAÇÕES NA LÓGICA) ---
   Widget _buildTipOfTheDayCard() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20.0),
@@ -278,10 +265,9 @@ class _SimpleHomeContentState extends State<SimpleHomeContent> {
     );
   }
 
-  // --- NOVO WIDGET: CARROSSEL DE INSPIRAÇÃO ---
   Widget _buildInspirationCarousel() {
     return SizedBox(
-      height: 220, // Altura do carrossel
+      height: 220,
       child: PageView.builder(
         controller: _pageController,
         itemCount: _inspirationData.length,
@@ -294,26 +280,28 @@ class _SimpleHomeContentState extends State<SimpleHomeContent> {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  // Imagem de fundo
                   Image.asset(
                     item['image']!,
                     fit: BoxFit.cover,
-                    // Em caso de erro na imagem, mostra um container cinza
                     errorBuilder: (context, error, stackTrace) {
-                      return Container(color: Colors.grey.shade300, child: Icon(Icons.image_not_supported, color: Colors.grey.shade600));
+                      return Container(
+                          color: Colors.grey.shade300,
+                          child: Icon(Icons.image_not_supported,
+                              color: Colors.grey.shade600));
                     },
                   ),
-                  // Gradiente para garantir a legibilidade do texto
                   DecoratedBox(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.bottomCenter,
                         end: Alignment.center,
-                        colors: [Colors.black.withOpacity(0.7), Colors.transparent],
+                        colors: [
+                          Colors.black.withOpacity(0.7),
+                          Colors.transparent
+                        ],
                       ),
                     ),
                   ),
-                  // Texto posicionado na parte inferior
                   Positioned(
                     bottom: 20,
                     left: 20,
@@ -324,7 +312,7 @@ class _SimpleHomeContentState extends State<SimpleHomeContent> {
                         color: Colors.white,
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        shadows: [ // Sombra no texto para melhor leitura
+                        shadows: [
                           Shadow(
                             blurRadius: 10.0,
                             color: Colors.black,

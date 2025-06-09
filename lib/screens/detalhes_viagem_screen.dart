@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart'; // <<< IMPORT CORRETO DO GOOGLE MAPS
+import 'package:geocoding/geocoding.dart'
+    as geocoding; // IMPORT DO GEOCÓDIGO COM ALIAS
 import '../JsonModels/viagem.dart';
+import 'add_viagem_screen.dart'; // Para navegar para a tela de edição
+import '../database/database_helper.dart'; // Para atualizar a viagem
 
 class DetalhesViagemScreen extends StatefulWidget {
   final Viagem viagem;
@@ -12,51 +16,186 @@ class DetalhesViagemScreen extends StatefulWidget {
 }
 
 class _DetalhesViagemScreenState extends State<DetalhesViagemScreen> {
-  final List<String> checklist = [
+  // A lista de checklist agora será dinâmica, carregada da Viagem
+  final List<Map<String, dynamic>> _dynamicChecklist = [];
+  final TextEditingController _newChecklistItemController =
+      TextEditingController(); // Controlador para adicionar novo item
+  final dbHelper =
+      DatabaseHelper(); // Instância do DatabaseHelper para salvar alterações
+
+  // Itens padrão para checklist, usados se a viagem não tiver checklist salva
+  static const List<String> _defaultChecklistItems = [
     'Passagens',
     'Documentos',
     'Roupas',
     'Protetor solar',
     'Carregadores',
+    'Hospedagem',
+    'Seguro Viagem',
+    'Dinheiro/Cartões',
+    'Medicamentos',
+    'Adaptador de tomada',
   ];
 
-  final Map<String, bool> checklistEstado = {};
+  // Variáveis para a galeria
   final List<String> galeria = [
     'https://picsum.photos/200?1',
     'https://picsum.photos/200?2',
     'https://picsum.photos/200?3',
   ];
 
+  LatLng? _destinoLatLng; // Para armazenar a LatLng do destino da viagem
+  bool _isLoadingMap =
+      true; // Para indicar que estamos buscando a LatLng do destino
+
   @override
   void initState() {
     super.initState();
-    for (var item in checklist) {
-      checklistEstado[item] = false;
+    _loadChecklist(); // Carrega a checklist da viagem ou a padrão
+    _geocodeDestination(); // Inicia a busca das coordenadas do destino
+  }
+
+  @override
+  void dispose() {
+    _newChecklistItemController.dispose();
+    super.dispose();
+  }
+
+  // Carrega a checklist da viagem ou usa a padrão
+  void _loadChecklist() {
+    if (widget.viagem.checklistJson != null &&
+        widget.viagem.checklistJson!.isNotEmpty) {
+      try {
+        _dynamicChecklist.addAll(widget.viagem.getChecklistAsMapList());
+      } catch (e) {
+        print("Erro ao carregar checklist JSON da viagem: $e");
+        _initializeDefaultChecklist(); // Fallback para padrão em caso de erro
+      }
+    } else {
+      _initializeDefaultChecklist();
     }
   }
 
-  void _abrirMapa() {
-    // Aqui você pode navegar para a tela com Google Maps se quiser
+  // Inicializa a checklist com itens padrão
+  void _initializeDefaultChecklist() {
+    _dynamicChecklist.addAll(
+      _defaultChecklistItems.map((item) {
+        return {'item': item, 'checked': false};
+      }).toList(),
+    );
+  }
+
+  // Salva a checklist atualizada no banco de dados
+  void _saveChecklist() async {
+    widget.viagem.setChecklistFromJsonList(_dynamicChecklist);
+    await dbHelper.atualizarViagem(
+      widget.viagem,
+    ); // Atualiza a viagem no banco de dados
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Checklist atualizada!')));
+    }
+  }
+
+  // Adiciona um novo item à checklist
+  void _addChecklistItem() {
+    final newItemText = _newChecklistItemController.text.trim();
+    if (newItemText.isNotEmpty) {
+      setState(() {
+        _dynamicChecklist.add({'item': newItemText, 'checked': false});
+        _newChecklistItemController.clear();
+      });
+      _saveChecklist(); // Salva no banco de dados
+    }
+  }
+
+  // Remove um item da checklist
+  void _removeChecklistItem(int index) {
+    setState(() {
+      _dynamicChecklist.removeAt(index);
+    });
+    _saveChecklist(); // Salva no banco de dados
+  }
+
+  // Toggle do status de um item da checklist
+  void _toggleChecklistItem(int index, bool? value) {
+    setState(() {
+      _dynamicChecklist[index]['checked'] = value ?? false;
+    });
+    _saveChecklist(); // Salva no banco de dados
+  }
+
+  Future<void> _geocodeDestination() async {
+    try {
+      List<geocoding.Location> locations = await geocoding.locationFromAddress(
+        widget.viagem.destino,
+      );
+      if (locations.isNotEmpty && mounted) {
+        setState(() {
+          _destinoLatLng = LatLng(
+            locations.first.latitude,
+            locations.first.longitude,
+          );
+          _isLoadingMap = false;
+        });
+      } else if (mounted) {
+        setState(() {
+          _isLoadingMap = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Não foi possível encontrar o destino no mapa.'),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Erro ao geocodificar "${widget.viagem.destino}": $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingMap = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao carregar o mapa do destino: $e')),
+        );
+      }
+    }
+  }
+
+  void _abrirMapaDoDestino() {
+    if (_destinoLatLng == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Localização do destino não disponível.')),
+      );
+      return;
+    }
+
     showDialog(
       context: context,
       builder:
           (_) => AlertDialog(
-            title: const Text('Mapa do destino'),
+            title: Text('Mapa de ${widget.viagem.destino}'),
             content: SizedBox(
-              height: 200,
-              child: GoogleMap(
-                initialCameraPosition: const CameraPosition(
-                  target: LatLng(-5.0892, -42.8016), // Exemplo: Teresina
-                  zoom: 12,
-                ),
-                markers: {
-                  Marker(
-                    markerId: const MarkerId('destino'),
-                    position: const LatLng(-5.0892, -42.8016),
-                    infoWindow: InfoWindow(title: widget.viagem.destino),
-                  ),
-                },
-              ),
+              height: 250,
+              width: MediaQuery.of(context).size.width * 0.8,
+              child:
+                  _isLoadingMap
+                      ? const Center(child: CircularProgressIndicator())
+                      : GoogleMap(
+                        initialCameraPosition: CameraPosition(
+                          target: _destinoLatLng!,
+                          zoom: 12,
+                        ),
+                        markers: {
+                          Marker(
+                            markerId: const MarkerId('destino'),
+                            position: _destinoLatLng!,
+                            infoWindow: InfoWindow(
+                              title: widget.viagem.destino,
+                            ),
+                          ),
+                        },
+                      ),
             ),
             actions: [
               TextButton(
@@ -68,11 +207,26 @@ class _DetalhesViagemScreenState extends State<DetalhesViagemScreen> {
     );
   }
 
-  void _editarViagem() {
-    // Lógica para ir para a tela de edição
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Funcionalidade de edição aqui')),
+  void _editarViagem(BuildContext context) async {
+    final updatedViagem = await Navigator.push<Viagem>(
+      context,
+      MaterialPageRoute(
+        builder:
+            (context) => AddViagemScreen(
+              viagemExistente: widget.viagem,
+              viagensExistentes: [],
+              userId: widget.viagem.userId,
+            ),
+      ),
     );
+
+    if (updatedViagem != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Viagem editada. Recarregando detalhes...'),
+        ),
+      );
+    }
   }
 
   void _agendarLembrete() {
@@ -89,7 +243,10 @@ class _DetalhesViagemScreenState extends State<DetalhesViagemScreen> {
       appBar: AppBar(
         title: const Text('Detalhes da Viagem'),
         actions: [
-          IconButton(icon: const Icon(Icons.edit), onPressed: _editarViagem),
+          IconButton(
+            icon: const Icon(Icons.edit),
+            onPressed: () => _editarViagem(context),
+          ),
         ],
       ),
       body: SingleChildScrollView(
@@ -113,20 +270,47 @@ class _DetalhesViagemScreenState extends State<DetalhesViagemScreen> {
             const SizedBox(height: 16),
             Text('Destino: ${v.destino}', style: const TextStyle(fontSize: 18)),
             Text(
-              'Orçamento: R\$ ${v.orcamento.toStringAsFixed(2)}',
-              style: const TextStyle(fontSize: 18),
-            ),
-            Text(
               'Período: ${v.dataIda.day}/${v.dataIda.month}/${v.dataIda.year} → '
               '${v.dataChegada.day}/${v.dataChegada.month}/${v.dataChegada.year}',
               style: const TextStyle(fontSize: 18),
+            ),
+
+            const SizedBox(height: 16),
+            const Text(
+              'Orçamento Detalhado:',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '• Total: R\$ ${v.orcamento.toStringAsFixed(2)}',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            Text(
+              '• Hospedagem: R\$ ${v.hospedagem.toStringAsFixed(2)}',
+              style: const TextStyle(fontSize: 16),
+            ),
+            Text(
+              '• Transporte: R\$ ${v.transporte.toStringAsFixed(2)}',
+              style: const TextStyle(fontSize: 16),
+            ),
+            Text(
+              '• Alimentação: R\$ ${v.alimentacao.toStringAsFixed(2)}',
+              style: const TextStyle(fontSize: 16),
+            ),
+            Text(
+              '• Despesas Diversas: R\$ ${v.despesasDiversas.toStringAsFixed(2)}',
+              style: const TextStyle(fontSize: 16),
+            ),
+            Text(
+              '• Passeios: R\$ ${v.passeios.toStringAsFixed(2)}',
+              style: const TextStyle(fontSize: 16),
             ),
             const SizedBox(height: 16),
 
             ElevatedButton.icon(
               icon: const Icon(Icons.map),
-              label: const Text('Ver no mapa'),
-              onPressed: _abrirMapa,
+              label: const Text('Ver no mapa do destino'),
+              onPressed: _abrirMapaDoDestino,
             ),
 
             const SizedBox(height: 24),
@@ -170,27 +354,58 @@ class _DetalhesViagemScreenState extends State<DetalhesViagemScreen> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            ...checklist.map((item) {
-              return CheckboxListTile(
-                title: Text(item),
-                value: checklistEstado[item],
-                onChanged: (val) {
-                  setState(() {
-                    checklistEstado[item] = val ?? false;
-                  });
-                },
-              );
-            }),
-
-            const SizedBox(height: 24),
-            const Text(
-              'Gastos:',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _dynamicChecklist.length,
+              itemBuilder: (context, index) {
+                final item = _dynamicChecklist[index];
+                return Dismissible(
+                  key: Key(item['item'].toString() + index.toString()),
+                  direction: DismissDirection.endToStart,
+                  onDismissed: (direction) {
+                    _removeChecklistItem(index);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('${item['item']} removido da checklist'),
+                      ),
+                    );
+                  },
+                  background: Container(
+                    color: Colors.red,
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: const Icon(Icons.delete, color: Colors.white),
+                  ),
+                  child: CheckboxListTile(
+                    title: Text(item['item']),
+                    value: item['checked'],
+                    onChanged: (val) => _toggleChecklistItem(index, val),
+                  ),
+                );
+              },
             ),
-            const SizedBox(height: 4),
-            const Text(
-              '• Hotel: R\$ 500,00\n• Alimentação: R\$ 300,00\n• Passeios: R\$ 200,00',
-              style: TextStyle(fontSize: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _newChecklistItemController,
+                      decoration: const InputDecoration(
+                        labelText: 'Novo item da checklist',
+                        border: OutlineInputBorder(),
+                      ),
+                      onSubmitted: (_) => _addChecklistItem(),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: _addChecklistItem,
+                    child: const Text('Adicionar'),
+                  ),
+                ],
+              ),
             ),
 
             const SizedBox(height: 24),
