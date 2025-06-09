@@ -10,7 +10,6 @@ class DatabaseHelper {
 
   static Database? _db;
 
-  // Definição da tabela de usuários
   String usersTable =
       "CREATE TABLE users (usrId INTEGER PRIMARY KEY AUTOINCREMENT, usrName TEXT UNIQUE, usrPassword TEXT, profileImagePath TEXT)";
 
@@ -26,7 +25,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 6, // <<< AUMENTE A VERSÃO AQUI (era 4, agora 6)
+      version: 7, // <<< AUMENTE A VERSÃO AQUI (era 6, AGORA 7)
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -43,11 +42,12 @@ class DatabaseHelper {
         dataChegada TEXT NOT NULL,
         corHex TEXT,
         userId INTEGER NOT NULL,
-        hospedagem REAL DEFAULT 0.0 NOT NULL,   -- <<< NOVA COLUNA
+        hospedagem REAL DEFAULT 0.0 NOT NULL,
         transporte REAL DEFAULT 0.0 NOT NULL,
         alimentacao REAL DEFAULT 0.0 NOT NULL,
-        despesasDiversas REAL DEFAULT 0.0 NOT NULL, -- <<< NOVA COLUNA (para substituir "presentes")
-        passeios REAL DEFAULT 0.0 NOT NULL
+        despesasDiversas REAL DEFAULT 0.0 NOT NULL,
+        passeios REAL DEFAULT 0.0 NOT NULL,
+        checklistJson TEXT -- <<< NOVA COLUNA PARA CHECKLIST
       )
     ''');
     await db.execute(usersTable);
@@ -66,8 +66,8 @@ class DatabaseHelper {
     if (oldVersion < 4) {
       await db.execute('ALTER TABLE users ADD COLUMN profileImagePath TEXT');
     }
-    // Migração da versão 4 para 5: Adiciona os campos de orçamento detalhado (menos hospedagem e renomeando presentes)
     if (oldVersion < 5) {
+      // Migração da versão 4 para 5: Adiciona os campos de orçamento detalhado (menos hospedagem e renomeando presentes)
       await db.execute(
         'ALTER TABLE viagens ADD COLUMN transporte REAL DEFAULT 0.0 NOT NULL',
       );
@@ -81,17 +81,19 @@ class DatabaseHelper {
         'ALTER TABLE viagens ADD COLUMN passeios REAL DEFAULT 0.0 NOT NULL',
       );
     }
-    // <<< NOVA MIGRAÇÃO PARA A VERSÃO 6: Adiciona hospedagem e despesasDiversas
     if (oldVersion < 6) {
+      // Migração da versão 5 para 6: Adiciona hospedagem e despesasDiversas
       await db.execute(
         'ALTER TABLE viagens ADD COLUMN hospedagem REAL DEFAULT 0.0 NOT NULL',
       );
-      // Adiciona 'despesasDiversas'. Se 'presentes' existia, para a migração simples,
-      // manteremos 'presentes' e adicionaremos 'despesasDiversas'. No modelo,
-      // faremos a leitura dar preferência a 'despesasDiversas'.
       await db.execute(
         'ALTER TABLE viagens ADD COLUMN despesasDiversas REAL DEFAULT 0.0 NOT NULL',
       );
+      // No modelo Viagem, faremos a leitura de despesasDiversas OU presentes para compatibilidade
+    }
+    // <<< NOVA MIGRAÇÃO PARA A VERSÃO 7: Adiciona coluna para checklistJson
+    if (oldVersion < 7) {
+      await db.execute('ALTER TABLE viagens ADD COLUMN checklistJson TEXT');
     }
   }
 
@@ -209,8 +211,7 @@ class DatabaseHelper {
 
   // Métodos de Autenticação
   Future<Users?> login(Users user) async {
-    final Database db =
-        await database; // Correção para usar a instância do getter
+    final Database db = await database;
     var result = await db.query(
       "users",
       where: "usrName = ? AND usrPassword = ?",
@@ -225,8 +226,7 @@ class DatabaseHelper {
   }
 
   Future<int?> Signup(Users user) async {
-    final Database db =
-        await database; // Correção para usar a instância do getter
+    final Database db = await database;
     try {
       final id = await db.insert('users', user.toMap());
       return id;

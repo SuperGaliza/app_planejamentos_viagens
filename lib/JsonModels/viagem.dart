@@ -1,4 +1,8 @@
 // lib/JsonModels/viagem.dart
+// Certifique-se de ter import 'dart:convert'; para jsonEncode/jsonDecode
+import 'dart:convert'; // Para trabalhar com JSON
+import 'package:flutter/material.dart'; // Mantido caso haja alguma dependência, mas pode não ser necessário aqui
+
 class Viagem {
   int? id;
   String titulo;
@@ -8,31 +12,30 @@ class Viagem {
   DateTime dataChegada;
   String? corHex;
   int userId;
-  // <<< NOVOS CAMPOS PARA DETALHE DO ORÇAMENTO
-  double hospedagem; // Novo campo
+  double hospedagem;
   double transporte;
   double alimentacao;
-  double
-  despesasDiversas; // Renomeado "presentes" para "despesasDiversas" (mais geral)
+  double despesasDiversas;
   double passeios;
-  // FIM DOS NOVOS CAMPOS
+  // <<< NOVO CAMPO: Para armazenar a checklist como JSON
+  String? checklistJson; // String JSON da checklist
+  // FIM DO NOVO CAMPO
 
   Viagem({
     this.id,
     required this.titulo,
     required this.destino,
-    required this.orcamento, // Este será o total calculado
+    required this.orcamento,
     required this.dataIda,
     required this.dataChegada,
     this.corHex,
     required this.userId,
-    // <<< Inicialize os novos campos no construtor
     this.hospedagem = 0.0,
     this.transporte = 0.0,
     this.alimentacao = 0.0,
     this.despesasDiversas = 0.0,
     this.passeios = 0.0,
-    // FIM DA INICIALIZAÇÃO
+    this.checklistJson, // <<< Adicione ao construtor
   });
 
   factory Viagem.fromMap(Map<String, dynamic> map) {
@@ -40,22 +43,20 @@ class Viagem {
       id: map['id'],
       titulo: map['titulo'],
       destino: map['destino'],
-      orcamento:
-          map['orcamento']?.toDouble() ?? 0.0, // Leitura do orçamento total
+      orcamento: map['orcamento']?.toDouble() ?? 0.0,
       dataIda: DateTime.parse(map['dataIda']),
       dataChegada: DateTime.parse(map['dataChegada']),
       corHex: map['corHex'] as String?,
       userId: map['userId'],
-      // <<< Leia os novos campos do mapa (com fallback para 0.0 se for nulo)
-      hospedagem: map['hospedagem']?.toDouble() ?? 0.0, // Novo campo
+      hospedagem: map['hospedagem']?.toDouble() ?? 0.0,
       transporte: map['transporte']?.toDouble() ?? 0.0,
       alimentacao: map['alimentacao']?.toDouble() ?? 0.0,
       despesasDiversas:
           map['despesasDiversas']?.toDouble() ??
           map['presentes']?.toDouble() ??
-          0.0, // Tentar ler 'despesasDiversas' ou 'presentes' para compatibilidade
+          0.0,
       passeios: map['passeios']?.toDouble() ?? 0.0,
-      // FIM DA LEITURA
+      checklistJson: map['checklistJson'] as String?, // <<< Leia do mapa
     );
   }
 
@@ -69,13 +70,32 @@ class Viagem {
       'dataChegada': dataChegada.toIso8601String(),
       'corHex': corHex,
       'userId': userId,
-      // <<< Escreva os novos campos no mapa
-      'hospedagem': hospedagem, // Novo campo
+      'hospedagem': hospedagem,
       'transporte': transporte,
       'alimentacao': alimentacao,
       'despesasDiversas': despesasDiversas,
       'passeios': passeios,
-      // FIM DA ESCRITA
+      'checklistJson': checklistJson, // <<< Escreva no mapa
     };
+  }
+
+  // --- MÉTODOS DE CONVENIÊNCIA PARA CHECKLIST ---
+  // Para converter o JSON da checklist para List<Map<String, dynamic>>
+  List<Map<String, dynamic>> getChecklistAsMapList() {
+    if (checklistJson == null || checklistJson!.isEmpty) {
+      return [];
+    }
+    try {
+      // jsonDecode retorna um List<dynamic>, precisamos converter para List<Map<String, dynamic>>
+      return (jsonDecode(checklistJson!) as List).cast<Map<String, dynamic>>();
+    } catch (e) {
+      print("Erro ao decodificar checklist JSON: $e");
+      return [];
+    }
+  }
+
+  // Para atualizar o JSON da checklist a partir de List<Map<String, dynamic>>
+  void setChecklistFromJsonList(List<Map<String, dynamic>> checklist) {
+    checklistJson = jsonEncode(checklist);
   }
 }

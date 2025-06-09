@@ -1,4 +1,3 @@
-// lib/screens/travel_screen.dart
 import 'package:flutter/material.dart';
 import '../JsonModels/viagem.dart';
 import '../database/database_helper.dart';
@@ -7,7 +6,7 @@ import '../Authentication/login_screen.dart'; // Para redirecionar se não houve
 import 'add_viagem_screen.dart'; // Para adicionar/editar viagens
 import 'calendario_screen.dart'; // Tela do calendário
 import 'maps_screen.dart'; // Tela do mapa
-import 'profile_screen.dart'; // Tela do perfil (agora será uma aba)
+// import 'profile_screen.dart'; // Removido: Perfil não é uma aba aqui
 import 'detalhes_viagem_screen.dart'; // Para abrir detalhes da viagem
 
 class TravelScreen extends StatefulWidget {
@@ -17,21 +16,39 @@ class TravelScreen extends StatefulWidget {
   State<TravelScreen> createState() => _TravelScreenState();
 }
 
-class _TravelScreenState extends State<TravelScreen> {
+class _TravelScreenState extends State<TravelScreen>
+    with SingleTickerProviderStateMixin {
   final dbHelper = DatabaseHelper();
-  List<Viagem> _viagens = []; // Lista principal de viagens do usuário logado
-  String _filtro = ''; // Filtro para a lista de viagens
-  String _ordenacao = 'Data'; // Ordenação para a lista de viagens
+  List<Viagem> _viagens = [];
+  String _filtro = '';
+  String _ordenacao = 'Data';
   int? _currentUserId;
   bool _isLoading = true;
+
+  late TabController _tabController; // Controlador das abas
 
   @override
   void initState() {
     super.initState();
-    _loadUserIdAndViagens(); // Carrega o userId e as viagens do usuário
+    _loadUserIdAndViagens();
+
+    _tabController = TabController(
+      length: 3,
+      vsync: this,
+    ); // 3 abas: Viagens, Mapa, Calendário
+    _tabController.addListener(() {
+      setState(() {
+        // Isso força a reconstrução para que o FloatingActionButton possa aparecer/desaparecer
+      });
+    });
   }
 
-  // Carrega o ID do usuário logado e, em seguida, as viagens
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadUserIdAndViagens() async {
     setState(() {
       _isLoading = true;
@@ -40,9 +57,8 @@ class _TravelScreenState extends State<TravelScreen> {
     if (!mounted) return;
 
     if (_currentUserId != null) {
-      await _fetchViagens(); // Busca as viagens do usuário
+      await _fetchViagens();
     } else {
-      // Caso não haja userId logado, redireciona para a tela de login
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Sessão expirada. Faça login novamente.')),
       );
@@ -57,10 +73,9 @@ class _TravelScreenState extends State<TravelScreen> {
     });
   }
 
-  // Método para buscar as viagens do banco de dados (chamado na inicialização e após operações CRUD)
   Future<void> _fetchViagens() async {
     if (_currentUserId == null) {
-      _viagens = []; // Garante lista vazia se não houver usuário logado
+      _viagens = [];
       return;
     }
     final fetchedViagens = await dbHelper.listarViagens(_currentUserId!);
@@ -70,7 +85,6 @@ class _TravelScreenState extends State<TravelScreen> {
     });
   }
 
-  // Método para adicionar uma nova viagem
   void _adicionarViagem() async {
     if (_currentUserId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -81,22 +95,20 @@ class _TravelScreenState extends State<TravelScreen> {
       return;
     }
 
-    // Navega para a tela de adicionar/editar viagem
     final novaViagem = await Navigator.push<Viagem>(
       context,
       MaterialPageRoute(
         builder:
             (context) => AddViagemScreen(
-              viagensExistentes:
-                  _viagens, // Passa todas as viagens para validação de conflito
-              userId: _currentUserId, // Passa o ID do usuário logado
+              viagensExistentes: _viagens,
+              userId: _currentUserId,
             ),
       ),
     );
 
     if (novaViagem != null) {
       await dbHelper.inserirViagem(novaViagem);
-      await _fetchViagens(); // Recarrega as viagens após a adição
+      await _fetchViagens();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Viagem adicionada com sucesso!')),
@@ -105,7 +117,6 @@ class _TravelScreenState extends State<TravelScreen> {
     }
   }
 
-  // Método para editar uma viagem existente
   void _editarViagem(Viagem viagemToEdit) async {
     if (_currentUserId == null || viagemToEdit.userId != _currentUserId) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -130,7 +141,7 @@ class _TravelScreenState extends State<TravelScreen> {
 
     if (viagemEditada != null) {
       await dbHelper.atualizarViagem(viagemEditada);
-      await _fetchViagens(); // Recarrega as viagens após a edição
+      await _fetchViagens();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Viagem atualizada com sucesso!')),
@@ -139,7 +150,6 @@ class _TravelScreenState extends State<TravelScreen> {
     }
   }
 
-  // Método para abrir os detalhes de uma viagem
   void _abrirDetalhes(Viagem viagem) {
     Navigator.push(
       context,
@@ -147,8 +157,8 @@ class _TravelScreenState extends State<TravelScreen> {
     );
   }
 
-  // Método para mostrar opções de editar/excluir ao segurar um item da lista
   void _mostrarOpcoesLongPress(Viagem viagem) {
+    // Assinatura correta: recebe apenas Viagem
     if (_currentUserId == null || viagem.userId != _currentUserId) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Você não tem permissão para esta ação.')),
@@ -207,7 +217,7 @@ class _TravelScreenState extends State<TravelScreen> {
                     }
 
                     await dbHelper.deletarViagem(viagem.id!, _currentUserId!);
-                    await _fetchViagens(); // Recarrega as viagens após a exclusão
+                    await _fetchViagens();
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
@@ -224,9 +234,14 @@ class _TravelScreenState extends State<TravelScreen> {
                                 dataChegada: viagem.dataChegada,
                                 corHex: viagem.corHex,
                                 userId: viagem.userId,
+                                hospedagem: viagem.hospedagem,
+                                transporte: viagem.transporte,
+                                alimentacao: viagem.alimentacao,
+                                despesasDiversas: viagem.despesasDiversas,
+                                passeios: viagem.passeios,
                               );
                               await dbHelper.inserirViagem(viagemDesfeita);
-                              await _fetchViagens(); // Recarrega as viagens após desfazer
+                              await _fetchViagens();
                               if (mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
@@ -249,7 +264,6 @@ class _TravelScreenState extends State<TravelScreen> {
     );
   }
 
-  // Filtra e ordena a lista de viagens para exibição
   List<Viagem> _viagensFiltradasOrdenadas() {
     if (_viagens.isEmpty && !_isLoading) return [];
     final filtradas =
@@ -269,177 +283,188 @@ class _TravelScreenState extends State<TravelScreen> {
     return filtradas;
   }
 
-  // --- Widget para a aba "Minhas Viagens" (lista de viagens, filtro, FAB) ---
+  // --- Widget para o CONTEÚDO da aba "Viagens" (lista de viagens, filtro, sem FAB) ---
   Widget _buildMyTripsTabContent() {
     final viagensExibidas = _viagensFiltradasOrdenadas();
 
-    return Scaffold(
-      // Usa um Scaffold interno para ter o FloatingActionButton
-      backgroundColor: Colors.grey[100],
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    decoration: const InputDecoration(
-                      hintText: 'Filtrar por título ou destino...',
-                      prefixIcon: Icon(Icons.search),
-                      border: OutlineInputBorder(),
-                    ),
-                    onChanged: (valor) {
-                      setState(() => _filtro = valor);
-                    },
+    return Column(
+      // Retorna uma Coluna diretamente
+      children: [
+        // Área de filtro e ordenação
+        Padding(
+          padding: const EdgeInsets.all(8),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  decoration: const InputDecoration(
+                    hintText: 'Filtrar por título ou destino...',
+                    prefixIcon: Icon(Icons.search),
+                    border: OutlineInputBorder(),
                   ),
-                ),
-                const SizedBox(width: 8),
-                DropdownButton<String>(
-                  value: _ordenacao,
-                  underline: const SizedBox(),
-                  icon: const Icon(Icons.sort, color: Colors.grey),
-                  items: const [
-                    DropdownMenuItem(value: 'Data', child: Text('Data')),
-                    DropdownMenuItem(
-                      value: 'Orçamento',
-                      child: Text('Orçamento'),
-                    ),
-                  ],
-                  onChanged: (val) {
-                    if (val != null) {
-                      setState(() => _ordenacao = val);
-                    }
+                  onChanged: (valor) {
+                    setState(() => _filtro = valor);
                   },
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 8),
+              DropdownButton<String>(
+                value: _ordenacao,
+                underline: const SizedBox(),
+                icon: const Icon(Icons.sort, color: Colors.grey),
+                items: const [
+                  DropdownMenuItem(value: 'Data', child: Text('Data')),
+                  DropdownMenuItem(
+                    value: 'Orçamento',
+                    child: Text('Orçamento'),
+                  ),
+                ],
+                onChanged: (val) {
+                  if (val != null) {
+                    setState(() => _ordenacao = val);
+                  }
+                },
+              ),
+            ],
           ),
-          Expanded(
-            child:
-                _isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : viagensExibidas.isEmpty
-                    ? const Center(
-                      child: Text(
-                        'Nenhuma viagem encontrada.\nClique no + para adicionar sua primeira!',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 16, color: Colors.grey),
-                      ),
-                    )
-                    : ListView.builder(
-                      padding: const EdgeInsets.only(top: 10),
-                      itemCount: viagensExibidas.length,
-                      itemBuilder: (context, index) {
-                        final viagem = viagensExibidas[index];
-                        final dataIda =
-                            '${viagem.dataIda.day}/${viagem.dataIda.month}';
-                        final dataVolta =
-                            '${viagem.dataChegada.day}/${viagem.dataChegada.month}';
-                        return GestureDetector(
-                          onTap: () => _abrirDetalhes(viagem),
-                          onLongPress:
-                              () => _mostrarOpcoesLongPress(
-                                viagem,
-                              ), // Passa a viagem diretamente
-                          child: Hero(
-                            tag:
-                                viagem.id?.toString() ??
-                                viagem.hashCode.toString(),
-                            child: Card(
-                              margin: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 8,
+        ),
+        // Lista de viagens
+        Expanded(
+          child:
+              _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : viagensExibidas.isEmpty
+                  ? const Center(
+                    child: Text(
+                      'Nenhuma viagem encontrada.\nClique no + para adicionar sua primeira!',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 16, color: Colors.grey),
+                    ),
+                  )
+                  : ListView.builder(
+                    padding: const EdgeInsets.only(top: 10),
+                    itemCount: viagensExibidas.length,
+                    itemBuilder: (context, index) {
+                      final viagem = viagensExibidas[index];
+                      final dataIda =
+                          '${viagem.dataIda.day}/${viagem.dataIda.month}';
+                      final dataVolta =
+                          '${viagem.dataChegada.day}/${viagem.dataChegada.month}';
+                      return GestureDetector(
+                        onTap: () => _abrirDetalhes(viagem),
+                        onLongPress:
+                            () => _mostrarOpcoesLongPress(
+                              viagem,
+                            ), // Passa a viagem
+                        child: Hero(
+                          tag:
+                              viagem.id?.toString() ??
+                              viagem.hashCode.toString(),
+                          child: Card(
+                            margin: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            elevation: 3,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: Color(
+                                  int.tryParse(viagem.corHex ?? '0xFFF77764') ??
+                                      Theme.of(context).primaryColor.value,
+                                ),
+                                child: const Icon(
+                                  Icons.flight_takeoff,
+                                  color: Colors.white,
+                                ),
                               ),
-                              elevation: 3,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                              title: Text(
+                                viagem.titulo,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                              child: ListTile(
-                                leading: CircleAvatar(
-                                  backgroundColor: Color(
-                                    int.tryParse(
-                                          viagem.corHex ?? '0xFF4A90E2',
-                                        ) ??
-                                        Theme.of(context).primaryColor.value,
-                                  ),
-                                  child: const Icon(
-                                    Icons.flight_takeoff,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                title: Text(
-                                  viagem.titulo,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                subtitle: Text(
-                                  '${viagem.destino} • $dataIda → $dataVolta',
-                                ),
-                                trailing: Text(
-                                  'R\$ ${viagem.orcamento.toStringAsFixed(2)}',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                              subtitle: Text(
+                                '${viagem.destino} • $dataIda → $dataVolta',
+                              ),
+                              trailing: Text(
+                                'R\$ ${viagem.orcamento.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
                             ),
                           ),
-                        );
-                      },
-                    ),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _adicionarViagem,
-        backgroundColor: const Color(
-          0xFFF77764,
-        ), // Cor consistente com a aba Travel
-        foregroundColor: Colors.white,
-        child: const Icon(Icons.add),
-      ),
+                        ),
+                      );
+                    },
+                  ),
+        ),
+      ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    // Verifica se a aba atual é a primeira (índice 0, "Viagens") para mostrar o FAB
+    final bool showFloatingActionButton = _tabController.index == 0;
+
     return DefaultTabController(
-      // Envolve todo o Scaffold com DefaultTabController
-      length: 4, // 4 abas: Viagens, Mapa, Calendário, Perfil
+      length: 3, // 3 abas: Viagens, Mapa, Calendário
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Travel Planner'), // Título geral do app
-          backgroundColor: Theme.of(context).primaryColor,
+          title: const Text('Minhas Viagens'), // Título principal da AppBar
+          backgroundColor:
+              Theme.of(context).primaryColor, // Usa a cor primária do tema
           foregroundColor: Colors.white,
           centerTitle: true,
-          bottom: const TabBar(
-            tabs: [
-              Tab(text: 'Viagens', icon: Icon(Icons.flight_takeoff)),
-              Tab(text: 'Mapa', icon: Icon(Icons.map)),
-              Tab(text: 'Calendário', icon: Icon(Icons.calendar_today)),
+          bottom: TabBar(
+            // Remover o 'const' daqui para que o TabController possa ser atribuído
+            tabs: const [
+              // Os Tab widgets em si podem ser const
               Tab(
-                text: 'Perfil',
-                icon: Icon(Icons.person),
-              ), // Adiciona a aba de Perfil
+                text: 'Viagens',
+                icon: Icon(Icons.flight_takeoff),
+              ), // Ícone original, texto 'Viagens'
+              Tab(
+                text: 'Mapa',
+                icon: Icon(Icons.map),
+              ), // Ícone original, texto 'Mapa'
+              Tab(
+                text: 'Calendário',
+                icon: Icon(Icons.calendar_today),
+              ), // Ícone original, texto 'Calendário'
             ],
             indicatorColor: Colors.white,
             labelColor: Colors.white,
             unselectedLabelColor: Colors.white70,
+            controller: _tabController, // <<< ATRIBUI O CONTROLLER AQUI
           ),
         ),
         body: TabBarView(
           // Conteúdo das abas
+          controller: _tabController, // <<< ATRIBUI O CONTROLLER AQUI
           children: [
-            _isLoading // Mostra o loading na aba de Viagens se os dados estiverem carregando
+            _isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : _buildMyTripsTabContent(), // Conteúdo da aba de Viagens
+                : _buildMyTripsTabContent(), // Conteúdo da aba de Viagens (Lista)
             const MapsScreen(), // Aba do Mapa
             CalendarioScreen(viagens: _viagens), // Aba do Calendário
-            const ProfileScreen(), // Aba do Perfil
           ],
         ),
+        floatingActionButton:
+            showFloatingActionButton
+                ? FloatingActionButton(
+                  onPressed: _adicionarViagem,
+                  backgroundColor: const Color(
+                    0xFFF77764,
+                  ), // Cor consistente com a aba Travel
+                  foregroundColor: Colors.white,
+                  child: const Icon(Icons.add),
+                )
+                : null, // Se não for a aba "Viagens", não mostra o FAB
       ),
     );
   }
