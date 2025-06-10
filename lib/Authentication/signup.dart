@@ -2,8 +2,6 @@ import 'package:app_planejamentos_viagens/Authentication/login_screen.dart';
 import 'package:app_planejamentos_viagens/JsonModels/users.dart';
 import 'package:app_planejamentos_viagens/database/database_helper.dart';
 import 'package:flutter/material.dart';
-import 'package:app_planejamentos_viagens/utils/session_manager.dart'; // <<< Importar SessionManager
-import 'package:app_planejamentos_viagens/screens/home_screen.dart'; // Importar HomeScreen se for logar direto
 
 class SignUp extends StatefulWidget {
   const SignUp({super.key});
@@ -25,29 +23,22 @@ class SignUpState extends State<SignUp> {
   final db = DatabaseHelper();
 
   void _registerUser() async {
-    // Renomeado de 'Signup' para _registerUser por convenção
     if (formKey.currentState!.validate()) {
-      // Validação extra para destino vazio pode ser ajustada ou removida se não for o caso aqui
-      // if (_destinoController.text.trim().isEmpty) { ScaffoldMessenger... return; }
-
       setState(() {
         _isLoading = true; // Inicia o carregamento
       });
 
-      // Chama o método Signup do DatabaseHelper, que agora retorna int? (o ID do novo usuário) ou null
       int? newUserId = await db.Signup(
         Users(usrName: username.text, usrPassword: password.text),
       );
 
-      if (!mounted)
-        return; // Verifica se o widget ainda está na árvore antes de setState
+      if (!mounted) return; 
 
       setState(() {
         _isLoading = false; // Finaliza o carregamento
       });
 
       if (newUserId != null) {
-        // Se o cadastro for bem-sucedido
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text("Conta criada com sucesso! Por favor, faça login."),
@@ -55,18 +46,11 @@ class SignUpState extends State<SignUp> {
             behavior: SnackBarBehavior.floating,
           ),
         );
-        // Redireciona para a tela de login (usando pushReplacement para limpar a pilha)
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const LoginScreen()),
         );
-
-        // Opcional: Se quiser logar o usuário automaticamente após o cadastro, descomente e ajuste:
-        // await SessionManager.saveLoggedInUser(Users(usrId: newUserId, usrName: username.text, usrPassword: password.text));
-        // if (!mounted) return;
-        // Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const HomeScreen()));
       } else {
-        // Se o cadastro falhou (ex: nome de usuário já existe)
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
@@ -92,16 +76,24 @@ class SignUpState extends State<SignUp> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const ListTile(
-                    title: Text(
-                      "Criar Nova Conta", // Título mais adequado para cadastro
-                      style: TextStyle(
-                        fontSize: 53,
-                        fontWeight: FontWeight.bold,
-                      ),
+                  // --- Bloco de Título ANTIGO foi substituído por este NOVO ---
+                  Image.asset(
+                    "lib/assets/planago_logo.png", // Caminho para a logo
+                    height: 120,
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    "Crie sua conta",
+                    style: TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF005A9C),
                     ),
                   ),
-                  // Campo de Usuário
+                   const SizedBox(height: 32),
+                  // --- Fim do Bloco NOVO ---
+                  
+                  // Campo de Usuário (Estilo Original Mantido)
                   Container(
                     margin: const EdgeInsets.all(8),
                     padding: const EdgeInsets.symmetric(
@@ -127,7 +119,7 @@ class SignUpState extends State<SignUp> {
                       ),
                     ),
                   ),
-                  // Campo de Senha
+                  // Campo de Senha (Estilo Original Mantido)
                   Container(
                     margin: const EdgeInsets.all(8),
                     padding: const EdgeInsets.symmetric(
@@ -164,7 +156,7 @@ class SignUpState extends State<SignUp> {
                       ),
                     ),
                   ),
-                  // Campo de Confirmação de Senha
+                  // Campo de Confirmação de Senha (Estilo Original Mantido)
                   Container(
                     margin: const EdgeInsets.all(8),
                     padding: const EdgeInsets.symmetric(
@@ -204,7 +196,7 @@ class SignUpState extends State<SignUp> {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  // Botão de Cadastro
+                  // Botão de Cadastro (Estilo Original Mantido)
                   Container(
                     height: 55,
                     width: MediaQuery.of(context).size.width * .9,
@@ -216,7 +208,7 @@ class SignUpState extends State<SignUp> {
                       onPressed:
                           _isLoading
                               ? null
-                              : _registerUser, // Desabilita o botão enquanto carrega
+                              : _registerUser, 
                       child:
                           _isLoading
                               ? const CircularProgressIndicator(
@@ -228,14 +220,13 @@ class SignUpState extends State<SignUp> {
                               ),
                     ),
                   ),
-                  // Botão "Já tem uma conta?"
+                  // Botão "Já tem uma conta?" (Estilo Original Mantido)
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       const Text("Já tem uma conta?"),
                       TextButton(
                         onPressed: () {
-                          // Navega para a tela de Login, removendo a tela de cadastro da pilha
                           Navigator.pushReplacement(
                             context,
                             MaterialPageRoute(

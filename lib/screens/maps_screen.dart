@@ -35,7 +35,6 @@ class _MapsScreenState extends State<MapsScreen> {
 
     _currentUserId = await SessionManager.getLoggedInUserId();
     
-    // CORREÇÃO: Garante que o widget ainda existe após operações demoradas
     if (!mounted) return;
 
     if (_currentUserId != null) {
@@ -55,7 +54,6 @@ class _MapsScreenState extends State<MapsScreen> {
       );
     }
     
-    // CORREÇÃO: A verificação mais importante antes do setState final.
     if (mounted) {
       setState(() {
         _carregando = false;
@@ -187,7 +185,6 @@ class _MapsScreenState extends State<MapsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Note: O AppBar foi removido aqui pois ele já existe na navegação principal da TravelScreen
     return Scaffold(
       body: Stack(
         children: [

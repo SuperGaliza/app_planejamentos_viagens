@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
+import 'package:intl/intl.dart';
 import '../JsonModels/viagem.dart';
 import '../widgets/destino_autocomplete.dart';
 import '../utils/session_manager.dart';
@@ -22,79 +23,66 @@ class AddViagemScreen extends StatefulWidget {
 
 class _AddViagemScreenState extends State<AddViagemScreen> {
   final _formKey = GlobalKey<FormState>();
+
   late TextEditingController _tituloController;
   late TextEditingController _destinoController;
-  late TextEditingController _orcamentoController; // Será a soma, readonly
+  late TextEditingController _orcamentoController;
   late TextEditingController _hospedagemController;
   late TextEditingController _transporteController;
   late TextEditingController _alimentacaoController;
-  late TextEditingController
-  _despesasDiversasController; // Renomeado de 'presentes'
+  late TextEditingController _despesasDiversasController;
   late TextEditingController _passeiosController;
 
   DateTime? _dataIda;
   DateTime? _dataChegada;
   Color _corSelecionada = Colors.blue;
-  String? _erroDatas;
   int? _currentUserId;
 
   final String _apiKey = 'AIzaSyBJlxqOiGAgWuw4TDBg6IGIgmvCrTxLqFE';
+
+  // Função auxiliar para inicializar os controladores de orçamento da forma correta
+  TextEditingController _initBudgetController(double? value) {
+    // Se o valor for nulo ou zero, o campo começa vazio (para mostrar o hintText)
+    // Se houver um valor, ele é exibido normalmente.
+    return TextEditingController(text: (value == null || value == 0.0) ? '' : value.toStringAsFixed(2));
+  }
 
   @override
   void initState() {
     super.initState();
     final v = widget.viagemExistente;
+
     _tituloController = TextEditingController(text: v?.titulo ?? '');
     _destinoController = TextEditingController(text: v?.destino ?? '');
 
-    _hospedagemController = TextEditingController(
-      text: v?.hospedagem.toStringAsFixed(2) ?? '0.00',
-    );
-    _transporteController = TextEditingController(
-      text: v?.transporte.toStringAsFixed(2) ?? '0.00',
-    );
-    _alimentacaoController = TextEditingController(
-      text: v?.alimentacao.toStringAsFixed(2) ?? '0.00',
-    );
-    _despesasDiversasController = TextEditingController(
-      text: v?.despesasDiversas.toStringAsFixed(2) ?? '0.00',
-    );
-    _passeiosController = TextEditingController(
-      text: v?.passeios.toStringAsFixed(2) ?? '0.00',
-    );
+    // --- MUDANÇA: Usando a nova função para inicializar os campos ---
+    _hospedagemController = _initBudgetController(v?.hospedagem);
+    _transporteController = _initBudgetController(v?.transporte);
+    _alimentacaoController = _initBudgetController(v?.alimentacao);
+    _despesasDiversasController = _initBudgetController(v?.despesasDiversas);
+    _passeiosController = _initBudgetController(v?.passeios);
+    
+    _orcamentoController = TextEditingController();
 
-    _orcamentoController = TextEditingController(
-      text: ((v?.hospedagem ?? 0.0) +
-              (v?.transporte ?? 0.0) +
-              (v?.alimentacao ?? 0.0) +
-              (v?.despesasDiversas ?? 0.0) +
-              (v?.passeios ?? 0.0))
-          .toStringAsFixed(2),
-    );
+    // Os "ouvintes" para o cálculo automático continuam
+    [_hospedagemController, _transporteController, _alimentacaoController, _despesasDiversasController, _passeiosController]
+        .forEach((controller) => controller.addListener(_updateTotalBudget));
 
-    _dataIda = v?.dataIda ?? DateTime.now();
-    _dataChegada =
-        v?.dataChegada ?? DateTime.now().add(const Duration(days: 3));
+    _dataIda = v?.dataIda;
+    _dataChegada = v?.dataChegada;
     if (v?.corHex != null && v!.corHex!.isNotEmpty) {
       _corSelecionada = Color(int.tryParse(v.corHex!) ?? Colors.blue.value);
     }
 
-    _currentUserId = widget.userId;
-    if (_currentUserId == null) {
-      _loadUserId();
-    }
-
-    _hospedagemController.addListener(_updateTotalBudget);
-    _transporteController.addListener(_updateTotalBudget);
-    _alimentacaoController.addListener(_updateTotalBudget);
-    _despesasDiversasController.addListener(_updateTotalBudget);
-    _passeiosController.addListener(_updateTotalBudget);
-
-    WidgetsBinding.instance.addPostFrameCallback((_) => _updateTotalBudget());
+    _loadUserId();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _updateTotalBudget();
+    });
   }
 
   @override
   void dispose() {
+    // O dispose agora é mais simples, sem FocusNodes
     _tituloController.dispose();
     _destinoController.dispose();
     _orcamentoController.dispose();
@@ -106,42 +94,33 @@ class _AddViagemScreenState extends State<AddViagemScreen> {
     super.dispose();
   }
 
-  void _updateTotalBudget() {
-    final double hospedagem =
-        double.tryParse(_hospedagemController.text) ?? 0.0;
-    final double transporte =
-        double.tryParse(_transporteController.text) ?? 0.0;
-    final double alimentacao =
-        double.tryParse(_alimentacaoController.text) ?? 0.0;
-    final double despesasDiversas =
-        double.tryParse(_despesasDiversasController.text) ?? 0.0;
-    final double passeios = double.tryParse(_passeiosController.text) ?? 0.0;
-
-    final double total =
-        hospedagem + transporte + alimentacao + despesasDiversas + passeios;
-
-    final String newTotalText = total.toStringAsFixed(2);
-    if (_orcamentoController.text != newTotalText) {
-      _orcamentoController.text = newTotalText;
-    }
-  }
-
   Future<void> _loadUserId() async {
-    _currentUserId = await SessionManager.getLoggedInUserId();
+    _currentUserId = widget.userId ?? await SessionManager.getLoggedInUserId();
     if (_currentUserId == null && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Erro: Usuário não logado. Faça login novamente.'),
-        ),
+        const SnackBar(content: Text('Erro: Usuário não logado.')),
       );
+      Navigator.of(context).pop();
     }
   }
 
-  Future<void> _selecionarData(bool isIda) async {
-    final dataInicial = isIda ? _dataIda : _dataChegada;
+  void _updateTotalBudget() {
+    // A lógica de parse com '?? 0.0' já trata o texto vazio como zero
+    final double hospedagem = double.tryParse(_hospedagemController.text) ?? 0.0;
+    final double transporte = double.tryParse(_transporteController.text) ?? 0.0;
+    final double alimentacao = double.tryParse(_alimentacaoController.text) ?? 0.0;
+    final double despesas = double.tryParse(_despesasDiversasController.text) ?? 0.0;
+    final double passeios = double.tryParse(_passeiosController.text) ?? 0.0;
+
+    final double total = hospedagem + transporte + alimentacao + despesas + passeios;
+    _orcamentoController.text = total.toStringAsFixed(2);
+  }
+
+  Future<void> _selecionarData(BuildContext context, bool isIda) async {
+    final dataInicial = isIda ? (_dataIda ?? DateTime.now()) : (_dataChegada ?? _dataIda ?? DateTime.now());
     final novaData = await showDatePicker(
       context: context,
-      initialDate: dataInicial ?? DateTime.now(),
+      initialDate: dataInicial,
       firstDate: DateTime(2000),
       lastDate: DateTime(2100),
     );
@@ -150,379 +129,218 @@ class _AddViagemScreenState extends State<AddViagemScreen> {
         if (isIda) {
           _dataIda = novaData;
           if (_dataChegada != null && _dataChegada!.isBefore(_dataIda!)) {
-            _dataChegada = _dataIda!.add(const Duration(days: 1));
+            _dataChegada = _dataIda;
           }
         } else {
           _dataChegada = novaData;
         }
-        _erroDatas = null;
       });
     }
-  }
-
-  bool _temConflitoDatas(DateTime novaIda, DateTime novaChegada) {
-    for (var v in widget.viagensExistentes) {
-      if (widget.viagemExistente != null &&
-          v.id == widget.viagemExistente!.id) {
-        continue;
-      }
-      final newTripStart = DateTime(novaIda.year, novaIda.month, novaIda.day);
-      final newTripEnd = DateTime(
-        novaChegada.year,
-        novaChegada.month,
-        novaChegada.day,
-      );
-      final existingTripStart = DateTime(
-        v.dataIda.year,
-        v.dataIda.month,
-        v.dataIda.day,
-      );
-      final existingTripEnd = DateTime(
-        v.dataChegada.year,
-        v.dataChegada.month,
-        v.dataChegada.day,
-      );
-
-      if (newTripStart.isBefore(existingTripEnd.add(const Duration(days: 1))) &&
-          newTripEnd.isAfter(
-            existingTripStart.subtract(const Duration(days: 1)),
-          )) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  bool _formularioValido() {
-    if (!_formKey.currentState!.validate()) {
-      return false;
-    }
-
-    if (_destinoController.text.trim().isEmpty) {
-      setState(() {
-        _erroDatas = 'Informe um destino válido';
-      });
-      return false;
-    }
-
-    if (_dataIda == null || _dataChegada == null) {
-      setState(() {
-        _erroDatas = 'Selecione datas válidas';
-      });
-      return false;
-    }
-
-    if (_dataChegada!.isBefore(_dataIda!)) {
-      setState(() {
-        _erroDatas = 'Data de chegada deve ser igual ou após a data de ida';
-      });
-      return false;
-    }
-
-    if (_temConflitoDatas(_dataIda!, _dataChegada!)) {
-      setState(() {
-        _erroDatas = 'Já existe uma viagem cadastrada nesse período';
-      });
-      return false;
-    }
-
-    final double orcamentoTotal =
-        double.tryParse(_orcamentoController.text) ?? 0.0;
-    if (orcamentoTotal <= 0) {
-      setState(() {
-        _erroDatas = 'O orçamento total deve ser maior que 0.';
-      });
-      return false;
-    }
-
-    setState(() => _erroDatas = null);
-    return true;
   }
 
   void _salvar() {
-    if (!_formularioValido()) {
-      return;
-    }
-
-    final double hospedagem =
-        double.tryParse(_hospedagemController.text) ?? 0.0;
-    final double transporte =
-        double.tryParse(_transporteController.text) ?? 0.0;
-    final double alimentacao =
-        double.tryParse(_alimentacaoController.text) ?? 0.0;
-    final double despesasDiversas =
-        double.tryParse(_despesasDiversasController.text) ?? 0.0;
-    final double passeios = double.tryParse(_passeiosController.text) ?? 0.0;
-
-    final double orcamentoTotal =
-        hospedagem + transporte + alimentacao + despesasDiversas + passeios;
-
-    if (_currentUserId == null) {
+    if (!_formKey.currentState!.validate()) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Erro: ID do usuário não disponível. Tente novamente.'),
-        ),
+        const SnackBar(content: Text('Por favor, preencha os campos obrigatórios.')),
       );
       return;
     }
-
-    final int? finalUserId;
-    if (widget.viagemExistente != null) {
-      finalUserId = widget.viagemExistente!.userId;
-    } else {
-      finalUserId = _currentUserId;
-    }
-
-    if (finalUserId == null) {
+    if (_dataIda == null || _dataChegada == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Erro: ID do usuário não disponível para salvar a viagem. Tente novamente.',
-          ),
-        ),
+        const SnackBar(content: Text('Por favor, selecione as datas da viagem.')),
       );
       return;
     }
-
+    if (_dataChegada!.isBefore(_dataIda!)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('A data de chegada não pode ser anterior à de ida.')),
+      );
+      return;
+    }
     final novaViagem = Viagem(
       id: widget.viagemExistente?.id,
       titulo: _tituloController.text.trim(),
       destino: _destinoController.text.trim(),
-      orcamento: orcamentoTotal,
+      orcamento: double.tryParse(_orcamentoController.text) ?? 0.0,
       dataIda: _dataIda!,
       dataChegada: _dataChegada!,
       corHex: _corSelecionada.value.toString(),
-      userId: finalUserId,
-      hospedagem: hospedagem,
-      transporte: transporte,
-      alimentacao: alimentacao,
-      despesasDiversas: despesasDiversas,
-      passeios: passeios,
+      userId: _currentUserId!,
+      hospedagem: double.tryParse(_hospedagemController.text) ?? 0.0,
+      transporte: double.tryParse(_transporteController.text) ?? 0.0,
+      alimentacao: double.tryParse(_alimentacaoController.text) ?? 0.0,
+      despesasDiversas: double.tryParse(_despesasDiversasController.text) ?? 0.0,
+      passeios: double.tryParse(_passeiosController.text) ?? 0.0,
     );
-
     Navigator.pop(context, novaViagem);
-  }
-
-  Future<bool> _confirmarSaida() async {
-    final temDados =
-        _tituloController.text.isNotEmpty ||
-        _destinoController.text.isNotEmpty ||
-        _orcamentoController.text.isNotEmpty ||
-        _hospedagemController.text.isNotEmpty ||
-        _transporteController.text.isNotEmpty ||
-        _alimentacaoController.text.isNotEmpty ||
-        _despesasDiversasController.text.isNotEmpty ||
-        _passeiosController.text.isNotEmpty;
-
-    if (!temDados) return true;
-
-    final sair = await showDialog<bool>(
-      context: context,
-      builder:
-          (_) => AlertDialog(
-            title: const Text('Descartar alterações?'),
-            content: const Text('Você perderá os dados inseridos.'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancelar'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Sim'),
-              ),
-            ],
-          ),
-    );
-
-    return sair ?? false;
-  }
-
-  // Método auxiliar para criar os TextFormField de orçamento detalhado
-  Widget _buildBudgetDetailField(
-    TextEditingController controller,
-    String labelText,
-  ) {
-    return TextFormField(
-      controller: controller,
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      decoration: InputDecoration(
-        labelText: labelText,
-        prefixText: 'R\$ ',
-        border: const OutlineInputBorder(),
-      ),
-      validator: (value) {
-        final v = double.tryParse(
-          value ?? '0.0',
-        ); // <<< CORREÇÃO AQUI: '0.0' como fallback para parse
-        if (v == null || v < 0) {
-          return 'Informe um valor válido (>= 0)';
-        }
-        return null;
-      },
-      onChanged: (_) => _updateTotalBudget(),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: _confirmarSaida,
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(
-            widget.viagemExistente == null ? 'Nova Viagem' : 'Editar Viagem',
-          ),
-        ),
-        body: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Form(
-            key: _formKey,
-            child: ListView(
-              children: [
-                TextFormField(
-                  controller: _tituloController,
-                  decoration: const InputDecoration(labelText: 'Título'),
-                  validator:
-                      (value) =>
-                          value == null || value.isEmpty
-                              ? 'Informe um título'
-                              : null,
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.viagemExistente == null ? 'Nova Viagem' : 'Editar Viagem'),
+        backgroundColor: Colors.blue,
+        foregroundColor: Colors.white,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextFormField(
+                controller: _tituloController,
+                decoration: const InputDecoration(
+                  labelText: 'Título da Viagem',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.label_outline),
                 ),
-                const SizedBox(height: 16),
-
-                SizedBox(
-                  height: 200,
-                  child: DestinoAutocomplete(
-                    apiKey: _apiKey,
-                    controller: _destinoController,
-                    onPlaceSelected: (descricao) {
-                      setState(() => _destinoController.text = descricao);
-                      _formKey.currentState?.validate();
-                    },
-                  ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'O título é obrigatório.';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 24),
+              const Text("Destino", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              DestinoAutocomplete(
+                apiKey: _apiKey,
+                controller: _destinoController,
+                hintText: 'Digite o destino...',
+                height: 200,
+                onPlaceSelected: (descricao) {
+                  setState(() => _destinoController.text = descricao);
+                },
+              ),
+              const SizedBox(height: 24),
+              const Text("Orçamento", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              _buildBudgetField(controller: _hospedagemController, label: 'Hospedagem', icon: Icons.hotel),
+              _buildBudgetField(controller: _transporteController, label: 'Transporte', icon: Icons.directions_car),
+              _buildBudgetField(controller: _alimentacaoController, label: 'Alimentação', icon: Icons.restaurant),
+              _buildBudgetField(controller: _passeiosController, label: 'Passeios', icon: Icons.attractions),
+              _buildBudgetField(controller: _despesasDiversasController, label: 'Despesas Diversas', icon: Icons.shopping_bag),
+              const Divider(height: 32, thickness: 1),
+              TextFormField(
+                controller: _orcamentoController,
+                readOnly: true,
+                decoration: const InputDecoration(
+                  labelText: 'Orçamento Total',
+                  border: OutlineInputBorder(),
+                  prefixText: 'R\$ ',
+                  filled: true,
+                  fillColor: Color.fromARGB(255, 223, 222, 222),
                 ),
-                const SizedBox(height: 16),
-
-                // CAMPO DE ORÇAMENTO TOTAL (SEMPRE VISÍVEL E SOMENTE LEITURA)
-                TextFormField(
-                  controller: _orcamentoController,
-                  readOnly: true, // Sempre somente leitura
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: InputDecoration(
-                    labelText: 'Orçamento Total',
-                    prefixText: 'R\$ ',
-                    border: const OutlineInputBorder(),
-                    filled:
-                        true, // Sempre preenchido para visual de somente leitura
-                    fillColor:
-                        Colors.grey[200], // Cor de fundo para somente leitura
-                  ),
-                  validator: (value) {
-                    final v = double.tryParse(value ?? '0.0');
-                    if (v == null || v <= 0) {
-                      return 'O orçamento total deve ser maior que 0.';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                const Divider(height: 32, thickness: 1), // Separador
-                const Text(
-                  'Detalhes do Orçamento',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
-
-                // CAMPO DE ORÇAMENTO DETALHADO (AGORA SEMPRE VISÍVEIS)
-                _buildBudgetDetailField(_hospedagemController, 'Hospedagem'),
-                const SizedBox(height: 16),
-                _buildBudgetDetailField(_transporteController, 'Transporte'),
-                const SizedBox(height: 16),
-                _buildBudgetDetailField(_alimentacaoController, 'Alimentação'),
-                const SizedBox(height: 16),
-                _buildBudgetDetailField(
-                  _despesasDiversasController,
-                  'Despesas Diversas',
-                ),
-                const SizedBox(height: 16),
-                _buildBudgetDetailField(_passeiosController, 'Passeios'),
-                const SizedBox(height: 16),
-
-                // FIM DOS CAMPOS DE ORÇAMENTO DETALHADO
-                ListTile(
-                  title: const Text('Data de ida'),
-                  subtitle: Text(
-                    // <<< LINHA COM ERRO DE FORMATAÇÃO NO SEU TERMINAL (linha 410 no seu output)
-                    _dataIda != null
-                        ? '${_dataIda!.day}/${_dataIda!.month}/${_dataIda!.year}'
-                        : 'Selecione',
-                  ),
-                  trailing: const Icon(Icons.date_range),
-                  tileColor:
-                      _erroDatas != null ? Colors.red.withOpacity(0.1) : null,
-                  onTap: () => _selecionarData(true),
-                ),
-                ListTile(
-                  title: const Text('Data de chegada'),
-                  subtitle: Text(
-                    _dataChegada != null
-                        ? '${_dataChegada!.day}/${_dataChegada!.month}/${_dataChegada!.year}'
-                        : 'Selecione',
-                  ),
-                  trailing: const Icon(Icons.date_range),
-                  tileColor:
-                      _erroDatas != null ? Colors.red.withOpacity(0.1) : null,
-                  onTap: () => _selecionarData(false),
-                ),
-
-                if (_erroDatas != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      _erroDatas!,
-                      style: const TextStyle(color: Colors.red),
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+              const SizedBox(height: 24),
+              const Text("Datas e Cor", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => _selecionarData(context, true),
+                      icon: const Icon(Icons.calendar_today),
+                      label: Text(_dataIda == null ? 'Ida' : DateFormat('dd/MM/yy').format(_dataIda!)),
                     ),
                   ),
-                const SizedBox(height: 16),
-
-                Row(
-                  children: [
-                    const Text('Cor da viagem:'),
-                    const SizedBox(width: 12),
-                    GestureDetector(
-                      onTap: () async {
-                        final novaCor = await showDialog<Color>(
-                          context: context,
-                          builder:
-                              (_) => AlertDialog(
-                                title: const Text('Escolher cor'),
-                                content: SingleChildScrollView(
-                                  child: BlockPicker(
-                                    pickerColor: _corSelecionada,
-                                    onColorChanged:
-                                        (cor) => Navigator.pop(context, cor),
-                                  ),
-                                ),
-                              ),
-                        );
-                        if (novaCor != null) {
-                          setState(() => _corSelecionada = novaCor);
-                        }
-                      },
-                      child: CircleAvatar(backgroundColor: _corSelecionada),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => _selecionarData(context, false),
+                      icon: const Icon(Icons.calendar_today),
+                      label: Text(_dataChegada == null ? 'Chegada' : DateFormat('dd/MM/yy').format(_dataChegada!)),
                     ),
-                  ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              GestureDetector(
+                onTap: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('Escolha uma cor'),
+                      content: SingleChildScrollView(
+                        child: BlockPicker(
+                          pickerColor: _corSelecionada,
+                          onColorChanged: (color) => setState(() => _corSelecionada = color),
+                        ),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: const Text('OK'),
+                        )
+                      ],
+                    ),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.color_lens_outlined),
+                      const SizedBox(width: 12),
+                      const Text('Cor da Viagem'),
+                      const Spacer(),
+                      CircleAvatar(backgroundColor: _corSelecionada, radius: 14),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 24),
-
-                ElevatedButton(onPressed: _salvar, child: const Text('Salvar')),
-              ],
-            ),
+              ),
+              const SizedBox(height: 32),
+              ElevatedButton(
+                onPressed: _salvar,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                child: const Text('SALVAR VIAGEM'),
+              ),
+            ],
           ),
         ),
+      ),
+    );
+  }
+
+  // --- MUDANÇA: Widget auxiliar agora usa hintText e não precisa mais do FocusNode ---
+  Widget _buildBudgetField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16.0),
+      child: TextFormField(
+        controller: controller,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        decoration: InputDecoration(
+          labelText: label,
+          prefixText: 'R\$ ',
+          hintText: '0.00', // <--- A MÁGICA ACONTECE AQUI
+          prefixIcon: Icon(icon),
+          border: const OutlineInputBorder(),
+        ),
+        validator: (value) {
+          // Permite que o campo esteja vazio, mas valida se não é um texto inválido.
+          if (value != null && value.isNotEmpty && double.tryParse(value.replaceAll(',', '.')) == null) {
+            return 'Valor inválido';
+          }
+          return null;
+        },
       ),
     );
   }

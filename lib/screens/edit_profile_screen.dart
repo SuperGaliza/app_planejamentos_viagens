@@ -25,6 +25,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   bool _isNewPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
 
+  // --- NOVIDADE: A "trava" para impedir o clique duplo ---
+  bool _isPickingImage = false;
+
   @override
   void initState() {
     super.initState();
@@ -53,15 +56,31 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
   }
 
+  // --- NOVIDADE: Função _pickImage atualizada com a trava ---
   Future<void> _pickImage() async {
-    final ImagePicker picker = ImagePicker();
-    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+    // Se já estamos escolhendo uma imagem, não faz nada.
+    if (_isPickingImage) return;
 
-    if (image != null) {
-      setState(() {
-        _newImagePath = image.path;
-      });
-      _saveProfilePicture();
+    try {
+      // Ativa a "trava"
+      setState(() => _isPickingImage = true);
+
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+
+      if (!mounted) return;
+
+      if (image != null) {
+        setState(() {
+          _newImagePath = image.path;
+        });
+        _saveProfilePicture();
+      }
+    } finally {
+      // IMPORTANTE: Libera a "trava", não importa se o usuário escolheu uma imagem ou cancelou.
+      if (mounted) {
+        setState(() => _isPickingImage = false);
+      }
     }
   }
 
@@ -154,7 +173,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   TextButton.icon(
                     icon: const Icon(Icons.camera_alt),
                     label: const Text('Escolher da Galeria'),
-                    onPressed: _pickImage,
+                    // O onPressed agora está protegido contra cliques duplos
+                    onPressed: _isPickingImage ? null : _pickImage,
                   ),
                   const Divider(height: 40),
                   Form(
@@ -190,7 +210,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                   !_isNewPasswordVisible)),
                           validator: (value) {
                             if (value!.isEmpty) return 'Campo obrigatório';
-                            // if (value.length < 6) return 'Mínimo de 6 caracteres'; // LINHA REMOVIDA
                             return null;
                           },
                         ),

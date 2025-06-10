@@ -19,7 +19,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   int _pastTripsCount = 0;
   int _futureTripsCount = 0;
   bool _isLoading = true;
-  bool _notificationsEnabled = true;
+  
 
   @override
   void initState() {
@@ -193,24 +193,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 _loadProfileData();
               }
             },
-          ),
-          _buildMenuTile(
-            title: 'Notificações',
-            icon: Icons.notifications_none_outlined,
-            trailing: Switch(
-              value: _notificationsEnabled,
-              onChanged: (value) {
-                setState(() {
-                  _notificationsEnabled = value;
-                });
-              },
-              activeColor: const Color(0xFF4DB6AC),
-            ),
-          ),
-          _buildMenuTile(
-            title: 'Sobre o App',
-            icon: Icons.info_outline,
-            onTap: () {},
           ),
           const Divider(),
           _buildMenuTile(
